@@ -35,6 +35,8 @@ export function QuickCapture() {
   };
 
   const pan = usePanGesture({
+    // While typing, vertical drags belong to the text, not to the pull gesture.
+    enabled: !focused,
     activeOffsetY: [-12, 12],
     onUpdate: (ev) => {
       'worklet';
@@ -50,7 +52,11 @@ export function QuickCapture() {
   const submit = () => {
     const t = text.trim();
     if (!t) return;
-    for (const line of t.split('\n').map((l) => l.trim()).filter(Boolean)) e.capture(line);
+    const lines = t.split('\n').map((l) => l.trim()).filter(Boolean);
+    // capture() files at the top of the inbox; feed in reverse so order is preserved, as one undo step.
+    e.transact('Yakala', () => {
+      for (const line of [...lines].reverse()) e.capture(line);
+    });
     setText('');
     haptic.soft();
     sent.value = 1;

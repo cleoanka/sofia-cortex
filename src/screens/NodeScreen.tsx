@@ -8,12 +8,14 @@ import { haptic } from '../platform/haptics';
 import { useEngine, useNode, useProgress, useVersion } from '../state/hooks';
 import { nav, useNav } from '../state/nav';
 import { useSheet } from '../state/sheet';
+import { cancelSteep, cancelTriggers } from '../platform/notify';
 import { usePalette } from '../theme/ThemeProvider';
 import { font, radius, space, type } from '../theme/tokens';
 import { Icon } from '../ui/Icon';
 import { guard, OutlineList } from '../ui/Outline';
 import { Check, Label, ProgressRing, Surface, Tap, ToolButton } from '../ui/primitives';
-import { RichBody } from '../ui/richText';
+import { followRef, RichBody } from '../ui/richText';
+import { TopScrim } from '../ui/TopScrim';
 import { toggleWithChoreography } from '../ui/Outline';
 
 export function NodeScreen({ id }: { id: NodeId }) {
@@ -33,6 +35,7 @@ export function NodeScreen({ id }: { id: NodeId }) {
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <OutlineList rootId={id} maxDepth={2} header={<NodeHeader node={n} top={insets.top} />} footer={<NodeFooter node={n} />} contentBottom={insets.bottom + 80} />
+      <TopScrim color={c.bg} />
     </View>
   );
 }
@@ -89,7 +92,7 @@ function NodeHeader({ node, top }: { node: CortexNode; top: number }) {
     <View style={{ paddingTop: top + 6 }}>
       <Breadcrumbs node={node} />
       <View style={{ paddingHorizontal: space.xl, marginTop: 18 }}>
-        <Label style={{ color: locked ? c.amber : c.textDim }}>{meta.join('  ·  ')}</Label>
+        <Label style={{ color: locked ? c.amberInk : c.textDim }}>{meta.join('  ·  ')}</Label>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 8 }}>
           {node.isTask ? (
             <View style={{ paddingTop: 6 }}>
@@ -139,6 +142,19 @@ function TitleEditor({ node }: { node: CortexNode }) {
   const commit = (t: string) => {
     if (t !== e.get(node.id)?.title) e.update(node.id, { title: t });
   };
+  const latest = useRef(v);
+  latest.current = v;
+  // Leaving mid-debounce must never lose a keystroke.
+  useEffect(
+    () => () => {
+      if (timer.current) {
+        clearTimeout(timer.current);
+        const n = e.get(node.id);
+        if (n && n.deletedAt == null && latest.current.trim() !== n.title) e.update(node.id, { title: latest.current.trim() });
+      }
+    },
+    [],
+  );
   return (
     <TextInput
       value={v}
@@ -214,6 +230,11 @@ function Toolbar({ node }: { node: CortexNode }) {
         active={node.sealed}
         tint={c.amber}
         onPress={() => {
+          if (!node.sealed && e.nextActions(node.id).length === 0) {
+            haptic.warn();
+            nav().showToast('Mühürlenecek açık görev yok', false);
+            return;
+          }
           haptic.thud();
           e.setSealed(node.id, !node.sealed);
           nav().showToast(node.sealed ? 'Mühür kaldırıldı' : 'Plan mühürlendi — şimdi yürüt');
@@ -234,7 +255,9 @@ function Toolbar({ node }: { node: CortexNode }) {
         label="Sil"
         disabled={locked || node.role === 'inbox'}
         onPress={() => {
+          const subtree = e.subtree(node.id);
           if (!guard(() => e.remove(node.id))) return;
+          cancelTriggers(subtree);
           haptic.thud();
           nav().pop();
           nav().showToast(`“${node.title || 'Adsız'}” çöpe gitti`);
@@ -271,7 +294,7 @@ function SteepCard({ node }: { node: CortexNode }) {
   const mm = Math.floor(left / 60000);
   const ss = Math.floor((left % 60000) / 1000);
   useEffect(() => {
-    if (left === 0) e.update(node.id, { steepUntil: null });
+    if (left === 0) e.update(node.id, { steepUntil: null }, { history: false });
   }, [left === 0]);
   return (
     <Animated.View entering={FadeIn} style={{ marginHorizontal: space.xl, marginTop: 18 }}>
@@ -289,7 +312,8 @@ function SteepCard({ node }: { node: CortexNode }) {
         <Tap
           onPress={() => {
             haptic.lens();
-            e.update(node.id, { steepUntil: null });
+            cancelSteep(node.id);
+            e.update(node.id, { steepUntil: null }, { history: false });
           }}
           style={{ marginTop: 14, alignSelf: 'flex-start' }}
         >
@@ -317,6 +341,18 @@ function BodyEditor({ node }: { node: CortexNode }) {
   const commit = (t: string) => {
     if (t !== e.get(node.id)?.body) e.update(node.id, { body: t });
   };
+  const latest = useRef(v);
+  latest.current = v;
+  useEffect(
+    () => () => {
+      if (timer.current) {
+        clearTimeout(timer.current);
+        const n = e.get(node.id);
+        if (n && n.deletedAt == null && latest.current !== n.body) e.update(node.id, { body: latest.current });
+      }
+    },
+    [],
+  );
   const change = (t: string) => {
     setV(t);
     if (timer.current) clearTimeout(timer.current);
@@ -518,7 +554,7 @@ const Synapses = memo(function Synapses({ node }: { node: CortexNode }) {
                   onPress={() => {
                     haptic.select();
                     if (o.target) nav().push({ name: 'node', id: o.target.id });
-                    else nav().openPalette({ mode: 'search' });
+                    else followRef(o.key, o.key, 'tag');
                   }}
                   style={[styles.outChip, { backgroundColor: o.kind === 'tag' ? c.amberSoft : c.accentSoft }]}
                 >
@@ -539,7 +575,7 @@ const styles = StyleSheet.create({
   crumbBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: space.l },
   back: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth },
   crumb: { paddingVertical: 8, paddingHorizontal: 4 },
-  toolbar: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: space.l, marginTop: 22 },
+  toolbar: { flexDirection: 'row', paddingHorizontal: space.m, marginTop: 22 },
   sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xl, marginBottom: 4 },
   sealBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: space.xl, marginTop: 18, padding: 14, borderRadius: radius.m },
   reminder: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: space.xl, marginTop: 16, paddingHorizontal: 12, height: 36, borderRadius: radius.pill },

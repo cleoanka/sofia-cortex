@@ -23,6 +23,8 @@ export interface Palette {
   accentSoft: string;
   amber: string; // completion, warmth, the "done" glow
   amberSoft: string;
+  /** Amber that passes 4.5:1 as text on the background. */
+  amberInk: string;
   success: string;
   danger: string;
   shadow: string;
@@ -64,11 +66,12 @@ export const light: Palette = {
   hairline: '#E9E4DD',
   text: '#18181B',
   textDim: '#71717A',
-  textFaint: '#A8A29E',
+  textFaint: '#8C857E',
   accent: '#4F46E5',
   accentSoft: 'rgba(79,70,229,0.09)',
   amber: '#D97706',
   amberSoft: 'rgba(217,119,6,0.12)',
+  amberInk: '#B45309',
   success: '#3F7D58',
   danger: '#B4443A',
   shadow: 'rgba(41,32,20,0.10)',
@@ -106,11 +109,12 @@ export const dark: Palette = {
   hairline: 'rgba(255,255,255,0.06)',
   text: '#F4F4F6',
   textDim: '#8E929F',
-  textFaint: '#5A5E6A',
+  textFaint: '#6E7280',
   accent: '#8B85FF',
   accentSoft: 'rgba(139,133,255,0.12)',
   amber: '#F2A33A',
   amberSoft: 'rgba(242,163,58,0.13)',
+  amberInk: '#F2A33A',
   success: '#7BC496',
   danger: '#E5796E',
   shadow: 'rgba(0,0,0,0.55)',

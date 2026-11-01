@@ -10,8 +10,10 @@ import { usePalette } from '../theme/ThemeProvider';
 import { font, radius, space, spring, type } from '../theme/tokens';
 import { Icon } from '../ui/Icon';
 import { OutlineList, toggleWithChoreography } from '../ui/Outline';
-import { Check, Label, ProgressRing, Surface, Tap } from '../ui/primitives';
+import { Check, Label, ProgressRing, Surface, Tap, upper } from '../ui/primitives';
 import { QuickCapture } from '../ui/QuickCapture';
+import { TopScrim } from '../ui/TopScrim';
+import { plainPreview } from '../ui/richText';
 
 const PULL = 72;
 
@@ -65,6 +67,7 @@ export function HomeScreen() {
         footer={<HomeFooter />}
         contentBottom={insets.bottom + 120}
       />
+      <TopScrim color={c.bg} />
       <QuickCapture />
     </View>
   );
@@ -76,11 +79,8 @@ function HomeHeader({ top }: { top: number }) {
   const v = useVersion();
   const now = new Date();
   const pinned = useMemo(() => e.pinned(), [e, v]);
-  const next = useMemo(() => e.nextActions(null, 1)[0], [e, v]);
-  const today = useMemo(() => {
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    return e.allLive().filter((n) => n.isTask && n.done && (n.doneAt ?? 0) >= start).length;
-  }, [e, v]);
+  const queue = useMemo(() => e.nextActions(null), [e, v]);
+  const next = queue[0];
   const inbox = e.inbox();
   const inboxCount = inbox ? e.children(inbox.id).length : 0;
 
@@ -100,7 +100,7 @@ function HomeHeader({ top }: { top: number }) {
         </View>
       </View>
 
-      <FocusCard nextId={next} today={today} />
+      <FocusCard nextId={next} open={queue.length} />
 
       {pinned.length > 0 ? (
         <>
@@ -172,7 +172,7 @@ function SectionTitle({ title, meta }: { title: string; meta?: string }) {
 }
 
 /** The single most important affordance in the app: stop deciding, start doing. */
-function FocusCard({ nextId, today }: { nextId?: NodeId; today: number }) {
+function FocusCard({ nextId, open }: { nextId?: NodeId; open: number }) {
   const c = usePalette();
   const e = useEngine();
   const next = useNode(nextId);
@@ -192,8 +192,8 @@ function FocusCard({ nextId, today }: { nextId?: NodeId; today: number }) {
       >
         <Surface style={{ padding: 18, backgroundColor: c.invBg, borderColor: c.scheme === 'dark' ? c.cardBorder : 'transparent' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={[type.micro, { color: c.invAccent, textTransform: 'uppercase' }]}>Sıradaki tek şey</Text>
-            <Text style={[type.mono, { color: c.invDim }]}>bugün {today} ✓</Text>
+            <Text style={[type.micro, { color: c.invAccent }]}>{upper('Sıradaki tek şey')}</Text>
+            <Text style={[type.mono, { color: c.invDim }]}>{open ? `${open} atomik adım` : 'boş'}</Text>
           </View>
           <Text numberOfLines={2} style={{ fontFamily: font.uiSemi, fontSize: 20, lineHeight: 26, letterSpacing: -0.5, color: c.invText, marginTop: 10 }}>
             {next ? next.title : 'Her şey yapıldı. Nefes al.'}
@@ -249,7 +249,7 @@ const Portal = memo(function Portal({ id }: { id: NodeId }) {
             open.map((k) => <PortalTask key={k} id={k} />)
           ) : (
             <Text numberOfLines={3} style={[type.small, { color: c.textDim }]}>
-              {n.body.replace(/\[\[|\]\]/g, '')}
+              {plainPreview(n.body, 160)}
             </Text>
           )}
         </View>

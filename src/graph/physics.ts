@@ -8,6 +8,8 @@ export interface ForceSimOptions {
   damping?: number;
   theta?: number;
   sleepEnergy?: number;
+  /** Cooling rate per step (d3 default 0.0228). Higher settles faster. */
+  alphaDecay?: number;
   sleepFrames?: number;
 }
 
@@ -46,6 +48,7 @@ export class ForceSim {
   private readonly theta: number;
   private readonly invThetaSq: number;
   private readonly sleepEnergy: number;
+  private readonly alphaDecay: number;
   private readonly sleepFrames: number;
 
   private _count = 0;
@@ -106,14 +109,15 @@ export class ForceSim {
   private _idToIndex = new Map<string, number>();
 
   constructor(opts?: ForceSimOptions) {
-    this.repulsion = opts?.repulsion ?? 900;
+    this.repulsion = opts?.repulsion ?? 20;
     this.springLength = opts?.springLength ?? 70;
-    this.springK = opts?.springK ?? 0.04;
-    this.gravity = opts?.gravity ?? 0.012;
+    this.springK = opts?.springK ?? 0.1;
+    this.gravity = opts?.gravity ?? 0.05;
     this.damping = opts?.damping ?? 0.86;
     this.theta = opts?.theta ?? 0.9;
     this.invThetaSq = 1.0 / (this.theta * this.theta);
     this.sleepEnergy = opts?.sleepEnergy ?? 0.02;
+    this.alphaDecay = opts?.alphaDecay ?? ALPHA_DECAY;
     this.sleepFrames = opts?.sleepFrames ?? 24;
 
     this.ensureNodeCapacity(64);
@@ -424,7 +428,9 @@ export class ForceSim {
     const pinned = this.pinned;
 
     // 1. Reset forces, apply weak gravity to origin, and compute bounding box for Barnes-Hut
-    const grav = this.gravity * (0.15 + 0.85 * this._alpha);
+    // All forces are unscaled; alpha scales the whole system at integration
+    // time (d3 semantics), so the equilibrium *shape* is independent of cooling.
+    const grav = this.gravity;
     let minX = x[0];
     let maxX = x[0];
     let minY = y[0];
@@ -474,6 +480,7 @@ export class ForceSim {
 
     // 4. Semi-implicit integration with damping & velocity cap
     const damping = this.damping;
+    const heat = Math.max(0.04, this._alpha);
     let totalKE = 0;
 
     for (let i = 0; i < n; i++) {
@@ -485,8 +492,8 @@ export class ForceSim {
 
       const mi = mass[i];
       const invMass = 1.0 / mi;
-      let nvx = (vx[i] + fx[i] * invMass * dt) * damping;
-      let nvy = (vy[i] + fy[i] * invMass * dt) * damping;
+      let nvx = (vx[i] + fx[i] * invMass * dt * heat) * damping;
+      let nvy = (vy[i] + fy[i] * invMass * dt * heat) * damping;
 
       let v2 = nvx * nvx + nvy * nvy;
       if (v2 > MAX_VELOCITY_SQ) {
@@ -506,7 +513,7 @@ export class ForceSim {
 
     // 5. Cool alpha (d3-like)
     const alphaTarget = this._pinnedCount > 0 ? 0.3 : 0.0;
-    this._alpha += (alphaTarget - this._alpha) * ALPHA_DECAY;
+    this._alpha += (alphaTarget - this._alpha) * this.alphaDecay;
 
     // 6. Check sleep condition
     const avgKE = totalKE / n;
@@ -804,7 +811,7 @@ export class ForceSim {
     const fx = this.fx;
     const fy = this.fy;
     const mass = this.mass;
-    const repAlpha = this.repulsion * this._alpha;
+    const repAlpha = this.repulsion;
 
     for (let i = 0; i < n; i++) {
       const px = x[i];

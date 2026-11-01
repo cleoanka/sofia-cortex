@@ -14,7 +14,7 @@ export function TrashScreen() {
   const e = useEngine();
   const v = useVersion();
   const insets = useSafeAreaInsets();
-  const items = useMemo(() => e.trash(), [e, v]);
+  const items = useMemo(() => e.trash().map((n) => ({ ...n, size: e.subtreeSql(n.id).length })), [e, v]);
   return (
     <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top + 6 }}>
       <View style={{ paddingHorizontal: space.l, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -44,7 +44,7 @@ export function TrashScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
         ListEmptyComponent={<Text style={[type.body, { color: c.textFaint, paddingHorizontal: space.xl, marginTop: 20 }]}>Boş. Hiçbir şey kaybolmadı.</Text>}
         renderItem={({ item }) => {
-          const size = e.subtreeSql(item.id).length;
+          const size = item.size;
           return (
             <View style={[styles.row, { borderBottomColor: c.hairline }]}>
               <View style={{ flex: 1 }}>

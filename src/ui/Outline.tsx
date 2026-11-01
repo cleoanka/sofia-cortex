@@ -1,5 +1,5 @@
 import React, { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View, type ListRenderItem, type StyleProp, type ViewStyle } from 'react-native';
 import { GestureDetector, useCompetingGestures, usePanGesture, usePinchGesture } from 'react-native-gesture-handler';
 import Animated, {
   interpolate,
@@ -26,6 +26,7 @@ import { font, spring, type } from '../theme/tokens';
 import { Icon } from './Icon';
 import { Check, ProgressRing } from './primitives';
 import { plainPreview } from './richText';
+import { CASCADE_DELAY, markCascade } from './choreo';
 
 export const INDENT = 22;
 const SWIPE_IN = 64;
@@ -43,7 +44,8 @@ interface DragApi {
   register: (id: NodeId, v: RowRef | null) => void;
   start: (id: NodeId) => void;
   move: (pageY: number) => void;
-  end: () => void;
+  /** true when the row was re-parented/re-ordered (layout animation takes over). */
+  end: () => boolean;
 }
 const DragCtx = createContext<DragApi | null>(null);
 type RowRef = React.ComponentRef<typeof View>;
@@ -64,12 +66,19 @@ export function guard(fn: () => void, sealedText = 'Plan mühürlü — önce y�
 }
 
 export function toggleWithChoreography(e: CortexEngine, id: NodeId): void {
+  const ancestors = e.path(id).slice(0, -1).map((n) => n.id).reverse();
+  // Mark before the write so ancestors' checks already know to wait.
+  markCascade(ancestors);
   const r = e.toggle(id);
-  if (r.cascaded.length > 0) {
-    // Let the ring close first (≈120ms), then the parent celebrates.
-    setTimeout(() => haptic.cascade(), 140);
-    const top = e.get(r.cascaded[r.cascaded.length - 1]);
-    nav().showToast(r.done ? `${top?.title || 'Görev'} tamamlandı` : `${top?.title || 'Görev'} yeniden açıldı`);
+  const top = e.get(r.cascaded[r.cascaded.length - 1]);
+  if (r.cascaded.length > 0 && r.done) {
+    haptic.tick();
+    // Ring closes first (≈120ms), then the parent celebrates.
+    setTimeout(() => haptic.cascade(), CASCADE_DELAY * r.cascaded.length);
+    nav().showToast(`${top?.title || 'Görev'} tamamlandı`);
+  } else if (r.cascaded.length > 0) {
+    haptic.soft();
+    nav().showToast(`${top?.title || 'Görev'} yeniden açıldı`);
   } else if (r.done) haptic.tick();
   else haptic.soft();
 }
@@ -148,7 +157,7 @@ export function OutlineList({
         const { dragging, target } = useDrag.getState();
         useDrag.setState({ dragging: null, target: null });
         setScrollEnabled(true);
-        if (!dragging || !target) return;
+        if (!dragging || !target) return false;
         const t = e.get(target.id)!;
         guard(() => {
           if (target.zone === 'inside') {
@@ -163,6 +172,7 @@ export function OutlineList({
             haptic.soft();
           }
         });
+        return true;
       },
     }),
     [e],
@@ -197,6 +207,7 @@ export function OutlineList({
             data={rows}
             keyExtractor={keyOf}
             renderItem={renderItem}
+            CellRendererComponent={LiftableCell}
             ListHeaderComponent={header}
             ListFooterComponent={footer}
             contentContainerStyle={{ paddingBottom: contentBottom }}
@@ -218,6 +229,16 @@ export function OutlineList({
 }
 
 const keyOf = (r: Row) => r.id;
+
+/** FlatList cells are siblings; zIndex must live on the cell for a dragged row to float above the rest. */
+function LiftableCell({ item, style, children, ...rest }: { item: Row; style?: StyleProp<ViewStyle>; children?: React.ReactNode }) {
+  const lifted = useDrag((s) => s.dragging === item.id);
+  return (
+    <View {...rest} style={[style, lifted && { zIndex: 999, elevation: 12 }]}>
+      {children}
+    </View>
+  );
+}
 
 // ───────────────────────────── row ─────────────────────────────
 
@@ -241,17 +262,17 @@ export const NodeRow = memo(function NodeRow({ id, depth, maxDepth = 2, standalo
   const lift = useSharedValue(0);
   const lastZone = useSharedValue(0);
   const pulse = useSharedValue(0);
+  const lastHopY = useSharedValue(-1000);
 
   useEffect(() => {
     lift.value = withSpring(isDragging ? 1 : 0, spring.snappy);
-    if (!isDragging) ty.value = withSpring(0, spring.snappy);
   }, [isDragging]);
   useEffect(() => {
     pulse.value = zone === 'inside' ? withRepeat(withSequence(withTiming(1, { duration: 420 }), withTiming(0.35, { duration: 420 })), -1, true) : withSpring(0);
   }, [zone]);
 
   const hasKids = e.hasChildren(id);
-  const sealed = n ? e.isLocked(id) : false;
+  const sealed = n?.sealed ? e.isLocked(id) : false;
 
   const doIndent = useCallback(() => {
     if (guard(() => e.indent(id))) haptic.select();
@@ -280,7 +301,7 @@ export const NodeRow = memo(function NodeRow({ id, depth, maxDepth = 2, standalo
     },
     onDeactivate: (ev) => {
       'worklet';
-      const x = ev.translationX;
+      const x = ev.canceled ? 0 : ev.translationX;
       if (x > SWIPE_IN) scheduleOnRN(doIndent);
       else if (x < SWIPE_BELL) scheduleOnRN(doBell);
       else if (x < SWIPE_OUT) scheduleOnRN(doOutdent);
@@ -291,7 +312,12 @@ export const NodeRow = memo(function NodeRow({ id, depth, maxDepth = 2, standalo
 
   const startDrag = useCallback(() => drag?.start(id), [drag, id]);
   const moveDrag = useCallback((y: number) => drag?.move(y), [drag]);
-  const endDrag = useCallback(() => drag?.end(), [drag]);
+  const endDrag = useCallback(() => {
+    const moved = drag?.end() ?? false;
+    // A real move: the layout transition carries the row to its new slot, so the
+    // finger offset is dropped at once. A cancelled drag springs back home.
+    ty.value = moved ? 0 : withSpring(0, spring.snappy);
+  }, [drag]);
 
   const dnd = usePanGesture({
     enabled: !standalone && !!drag,
@@ -303,7 +329,11 @@ export const NodeRow = memo(function NodeRow({ id, depth, maxDepth = 2, standalo
     onUpdate: (ev) => {
       'worklet';
       ty.value = ev.translationY;
-      scheduleOnRN(moveDrag, ev.absoluteY);
+      // Hit-testing lives on JS; only hop when the finger moved meaningfully.
+      if (Math.abs(ev.absoluteY - lastHopY.value) > 6) {
+        lastHopY.value = ev.absoluteY;
+        scheduleOnRN(moveDrag, ev.absoluteY);
+      }
     },
     onFinalize: () => {
       'worklet';
@@ -369,7 +399,7 @@ export const NodeRow = memo(function NodeRow({ id, depth, maxDepth = 2, standalo
             ))}
             <View style={styles.lead}>
               {n.isTask ? (
-                <Check done={n.done} onPress={() => toggleWithChoreography(e, id)} />
+                <Check id={id} done={n.done} onPress={() => toggleWithChoreography(e, id)} />
               ) : (
                 <View style={[styles.bullet, { backgroundColor: hasKids ? 'transparent' : c.textFaint, borderColor: hasKids ? c.textDim : 'transparent' }]} />
               )}
@@ -399,7 +429,7 @@ export const NodeRow = memo(function NodeRow({ id, depth, maxDepth = 2, standalo
               {n.reminderAt && n.reminderAt > Date.now() ? <Icon name="bell" size={13} color={c.accent} /> : null}
               {prog.total > 0 ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={[type.mono, { color: prog.done === prog.total ? c.amber : c.textDim }]}>
+                  <Text style={[type.mono, { color: prog.done === prog.total ? c.amberInk : c.textDim }]}>
                     {prog.done}/{prog.total}
                   </Text>
                   <ProgressRing done={prog.done} total={prog.total} size={18} stroke={2.2} label={false} />

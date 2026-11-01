@@ -13,6 +13,7 @@ import Animated, {
 import Svg, { Circle, Path } from 'react-native-svg';
 import { usePalette } from '../theme/ThemeProvider';
 import { font, radius, spring, type } from '../theme/tokens';
+import { takeCascadeDelay } from './choreo';
 import { Icon, type IconName } from './Icon';
 
 const APressable = Animated.createAnimatedComponent(Pressable);
@@ -61,6 +62,7 @@ export function Surface({ style, children, elevated = true }: { style?: StylePro
           shadowOffset: { width: 0, height: c.scheme === 'dark' ? 8 : 6 },
         },
         style,
+        c.scheme === 'dark' && { borderTopColor: c.highlight },
       ]}
     >
       {children}
@@ -72,13 +74,15 @@ export function Surface({ style, children, elevated = true }: { style?: StylePro
  * The check. Empty ring → amber disc with a drawn checkmark. The stroke draws
  * on (dash offset) while the disc springs, so completion has a physical "give".
  */
-export const Check = memo(function Check({ done, size = 22, onPress, dim }: { done: boolean; size?: number; onPress?: () => void; dim?: boolean }) {
+export const Check = memo(function Check({ id, done, size = 22, onPress, dim }: { id?: string; done: boolean; size?: number; onPress?: () => void; dim?: boolean }) {
   const c = usePalette();
   const p = useSharedValue(done ? 1 : 0);
   const pop = useSharedValue(1);
   useEffect(() => {
-    p.value = withSpring(done ? 1 : 0, spring.snappy);
-    if (done) pop.value = withSequence(withSpring(1.18, { damping: 9, stiffness: 520, mass: 0.5 }), withSpring(1, spring.bouncy));
+    // An auto-completed ancestor waits for its child's ring to close, then blooms.
+    const wait = done ? takeCascadeDelay(id) : 0;
+    p.value = withDelay(wait, withSpring(done ? 1 : 0, spring.snappy));
+    if (done) pop.value = withDelay(wait, withSequence(withSpring(1.18, { damping: 9, stiffness: 520, mass: 0.5 }), withSpring(1, spring.bouncy)));
   }, [done]);
   const disc = useAnimatedProps(() => ({
     r: interpolate(p.value, [0, 1], [0, 9.2]),
@@ -137,7 +141,7 @@ export const ProgressRing = memo(function ProgressRing({ done, total, size = 26,
         />
       </Svg>
       {label && size >= 30 ? (
-        <Text style={{ fontFamily: font.uiSemi, fontSize: size * 0.27, color: frac >= 1 ? c.amber : c.textDim, fontVariant: ['tabular-nums'] }}>
+        <Text style={{ fontFamily: font.uiSemi, fontSize: size * 0.27, color: frac >= 1 ? c.amberInk : c.textDim, fontVariant: ['tabular-nums'] }}>
           {done}/{total}
         </Text>
       ) : null}
@@ -145,9 +149,13 @@ export const ProgressRing = memo(function ProgressRing({ done, total, size = 26,
   );
 });
 
+/** Turkish-correct capitals: RN's textTransform is locale-blind (i → I, not İ). */
+export const upper = (s: string) => s.toLocaleUpperCase('tr-TR');
+
 export function Label({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
   const c = usePalette();
-  return <Text style={[type.micro, { color: c.textDim, textTransform: 'uppercase' }, style]}>{children}</Text>;
+  const text = React.Children.toArray(children).join('');
+  return <Text style={[type.micro, { color: c.textDim }, style]}>{upper(text)}</Text>;
 }
 
 /** Icon button with an always-visible caption — no hidden menus, ever. */
@@ -155,7 +163,7 @@ export function ToolButton({ icon, label, onPress, active, tint, disabled }: { i
   const c = usePalette();
   const color = disabled ? c.textFaint : active ? tint ?? c.accent : c.textDim;
   return (
-    <Tap onPress={disabled ? undefined : onPress} style={{ alignItems: 'center', minWidth: 44, gap: 5, opacity: disabled ? 0.55 : 1 }} accessibilityLabel={label}>
+    <Tap onPress={disabled ? undefined : onPress} style={{ flex: 1, alignItems: 'center', gap: 5, opacity: disabled ? 0.55 : 1 }} accessibilityLabel={label}>
       <View
         style={{
           width: 40,
@@ -170,7 +178,7 @@ export function ToolButton({ icon, label, onPress, active, tint, disabled }: { i
       >
         <Icon name={icon} size={20} color={color} />
       </View>
-      <Text numberOfLines={1} style={{ fontFamily: font.uiMedium, fontSize: 10.5, letterSpacing: 0.1, color: active ? color : c.textDim }}>
+      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ fontFamily: font.uiMedium, fontSize: 10.5, letterSpacing: 0.1, color: active ? color : c.textDim }}>
         {label}
       </Text>
     </Tap>
@@ -179,7 +187,7 @@ export function ToolButton({ icon, label, onPress, active, tint, disabled }: { i
 
 export function Pill({ icon, label, onPress, tone = 'neutral' }: { icon?: IconName; label: string; onPress?: () => void; tone?: 'neutral' | 'accent' | 'amber' }) {
   const c = usePalette();
-  const fg = tone === 'accent' ? c.accent : tone === 'amber' ? c.amber : c.textDim;
+  const fg = tone === 'accent' ? c.accent : tone === 'amber' ? c.amberInk : c.textDim;
   const bg = tone === 'accent' ? c.accentSoft : tone === 'amber' ? c.amberSoft : c.surface;
   return (
     <Tap onPress={onPress} disabled={!onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, height: 30, borderRadius: radius.pill, backgroundColor: bg }}>

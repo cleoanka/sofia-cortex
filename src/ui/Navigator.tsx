@@ -5,6 +5,7 @@ import Animated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue,
 import { scheduleOnRN } from 'react-native-worklets';
 import { useNav, type Keyed } from '../state/nav';
 import { usePalette } from '../theme/ThemeProvider';
+import { SceneDepth } from '../state/scene';
 import { spring } from '../theme/tokens';
 
 type Transition = 'portal' | 'flip' | 'tunnel' | 'rise';
@@ -78,7 +79,8 @@ const Scene = memo(function Scene({ route, depth, isRoot, children }: { route: K
       };
     }
     return {
-      opacity: interpolate(e, [0, 0.5], [0, 1], Extrapolation.CLAMP) * interpolate(b, [0, 1], [1, 0.0], Extrapolation.CLAMP) ** 0.25,
+      // Covered pages stay visible (dimmed by the scrim) so an edge-swipe reveals them.
+      opacity: interpolate(e, [0, 0.5], [0, 1], Extrapolation.CLAMP),
       borderRadius: interpolate(b, [0, 1], [0, 28]) + interpolate(d, [0, 1], [0, 28], Extrapolation.CLAMP),
       transform: [
         { translateX: drag.value },
@@ -97,20 +99,26 @@ const Scene = memo(function Scene({ route, depth, isRoot, children }: { route: K
     },
     onDeactivate: (e) => {
       'worklet';
+      if (e.canceled) {
+        drag.value = withSpring(0, spring.snappy);
+        return;
+      }
       if (e.translationX > width * 0.32 || e.velocityX > 700) {
         drag.value = withSpring(width, { ...spring.snappy, velocity: e.velocityX }, () => scheduleOnRN(pop));
       } else drag.value = withSpring(0, spring.snappy);
     },
   });
 
+  const dim = useAnimatedStyle(() => ({ opacity: behind.value * 0.55 }));
   const hidden = depth > 1;
   return (
     <Animated.View
       pointerEvents={depth === 0 ? 'auto' : 'none'}
-      exiting={exitFor(kind)}
+      exiting={exitFor(kind, drag)}
       style={[StyleSheet.absoluteFill, { backgroundColor: c.bg, overflow: 'hidden' }, style, hidden && { display: 'none' }]}
     >
-      {children}
+      <SceneDepth.Provider value={depth}>{children}</SceneDepth.Provider>
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim }, dim]} />
       {!isRoot ? (
         <GestureDetector gesture={back}>
           <View style={styles.edge} />
@@ -121,9 +129,11 @@ const Scene = memo(function Scene({ route, depth, isRoot, children }: { route: K
 });
 
 /** Exit choreography mirrors the entrance: portals shrink back into their row, lenses turn away. */
-function exitFor(kind: Transition) {
+function exitFor(kind: Transition, drag: { value: number }) {
   return () => {
     'worklet';
+    // Already swiped off-screen by the finger: leave without a second, ghostly exit.
+    if (drag.value > 0) return { initialValues: { opacity: 0 }, animations: {} };
     const t = { duration: 240, easing: Easing.bezier(0.3, 0, 0.2, 1) };
     if (kind === 'flip')
       return {

@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { haptic } from '../platform/haptics';
 import { setReminder } from '../platform/notify';
-import { useEngine } from '../state/hooks';
+import { useNode } from '../state/hooks';
 import { nav } from '../state/nav';
 import { useSheet } from '../state/sheet';
 import { usePalette } from '../theme/ThemeProvider';
@@ -43,9 +43,18 @@ export function ReminderSheet() {
 }
 
 function Body({ id }: { id: string }) {
+  const live = useNode(id);
+  const gone = !live || live.deletedAt != null;
+  // The node can vanish (undo, delete) while the drawer is open.
+  useEffect(() => {
+    if (gone) useSheet.getState().close();
+  }, [gone]);
+  return gone ? null : <BodyFor id={id} />;
+}
+
+function BodyFor({ id }: { id: string }) {
   const c = usePalette();
-  const e = useEngine();
-  const n = e.get(id)!;
+  const n = useNode(id)!;
   const insets = useSafeAreaInsets();
   const kb = useAnimatedKeyboard();
   const lift = useAnimatedStyle(() => ({ transform: [{ translateY: -kb.height.value }] }));
@@ -86,7 +95,7 @@ function Body({ id }: { id: string }) {
 
           {hookMode ? (
             <Animated.View entering={FadeIn} style={[styles.hookBox, { backgroundColor: c.amberSoft }]}>
-              <Text style={[type.micro, { color: c.amber }]}>İLK HAREKET KOMUTU</Text>
+              <Text style={[type.micro, { color: c.amberInk }]}>İLK HAREKET KOMUTU</Text>
               <TextInput
                 value={hook}
                 onChangeText={setHook}

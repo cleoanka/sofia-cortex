@@ -38,6 +38,7 @@ export async function setReminder(id: NodeId, at: number | null, hook: string | 
     e.update(id, { reminderAt: null, reminderHook: null, reminderId: null });
     return;
   }
+  if (at <= Date.now()) return;
   const title = hook ? `▶ ${hook}` : n.title || 'Sofia Cortex';
   const body = hook ? `Otopilot hazır · ${n.title}` : e.path(id).slice(0, -1).map((p) => p.title).join(' › ') || 'Hatırlatma';
   const rid = await schedule(at, title, body, { nodeId: id, mode: hook ? 'autopilot' : 'node' });
@@ -45,14 +46,34 @@ export async function setReminder(id: NodeId, at: number | null, hook: string | 
 }
 
 export async function scheduleSteep(id: NodeId, title: string, at: number): Promise<void> {
-  await schedule(at, 'Vaka dosyası hazır', `“${title}” demlendi. Şimdi dışarıdan bak.`, { nodeId: id, mode: 'observer' });
+  await cancelSteep(id);
+  const rid = await schedule(at, 'Vaka dosyası hazır', `“${title}” demlendi. Şimdi dışarıdan bak.`, { nodeId: id, mode: 'observer' });
+  if (rid) getEngine().setMeta(`steep:${id}`, rid);
+}
+
+export async function cancelSteep(id: NodeId): Promise<void> {
+  const e = getEngine();
+  const rid = e.meta(`steep:${id}`);
+  if (!rid) return;
+  e.setMeta(`steep:${id}`, '');
+  await Notifications.cancelScheduledNotificationAsync(rid).catch(() => {});
+}
+
+/** A deleted subtree must not keep ringing. */
+export function cancelTriggers(ids: NodeId[]): void {
+  const e = getEngine();
+  for (const id of ids) {
+    const n = e.get(id);
+    if (n?.reminderId) Notifications.cancelScheduledNotificationAsync(n.reminderId).catch(() => {});
+    cancelSteep(id);
+  }
 }
 
 function routeFor(p: Payload): Route[] {
   const e = getEngine();
   if (!e.get(p.nodeId)) return [{ name: 'home' }];
   if (p.mode === 'observer') {
-    e.update(p.nodeId, { steepUntil: null });
+    e.update(p.nodeId, { steepUntil: null }, { history: false });
     return [{ name: 'home' }, { name: 'node', id: p.nodeId }, { name: 'observer', id: p.nodeId }];
   }
   if (p.mode === 'autopilot') return [{ name: 'home' }, { name: 'autopilot', scope: p.nodeId, startId: p.nodeId }];

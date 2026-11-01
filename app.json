@@ -16,7 +16,8 @@
         "CADisableMinimumFrameDurationOnPhone": true,
         "ITSAppUsesNonExemptEncryption": false,
         "NSMotionUsageDescription": "Telefonu sallayarak son işlemi geri almak için."
-      }
+      },
+      "appleTeamId": "3UBX7U87GG"
     },
     "android": {
       "package": "com.cleoanka.sofiacortex",
@@ -31,6 +32,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "./plugins/withLocalNotificationsOnly",
       [
         "expo-sqlite",
         {

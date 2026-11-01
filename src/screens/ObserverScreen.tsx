@@ -1,7 +1,7 @@
 import { Canvas, Fill, FractalNoise, LinearGradient, Rect, vec } from '@shopify/react-native-skia';
 import React, { useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
-import Animated, { FadeIn, FadeInDown, LinearTransition, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { analyse } from '../engine/observer';
 import type { NodeId } from '../engine/types';
@@ -13,6 +13,7 @@ import { usePalette } from '../theme/ThemeProvider';
 import { font, radius } from '../theme/tokens';
 import { Icon } from '../ui/Icon';
 import { Tap } from '../ui/primitives';
+import { TopScrim } from '../ui/TopScrim';
 
 const STEEP_MIN = 15;
 
@@ -32,8 +33,6 @@ export function ObserverScreen({ id }: { id: NodeId }) {
   const file = useMemo(() => (n ? analyse(n.id, n.title, n.body) : null), [n?.id, n?.title, n?.body]);
   const [showOriginal, setShowOriginal] = useState(false);
   const opened = useRef(new Date()).current;
-  const kb = useAnimatedKeyboard();
-  const lift = useAnimatedStyle(() => ({ paddingBottom: kb.height.value }));
 
   if (!n || !file) return null;
   const created = new Date(n.createdAt);
@@ -56,8 +55,10 @@ export function ObserverScreen({ id }: { id: NodeId }) {
         </Fill>
       </Canvas>
 
-      <Animated.View style={[{ flex: 1 }, lift]}>
-        <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 60, paddingHorizontal: 28 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <Animated.View style={{ flex: 1 }}>
+        <ScrollView
+          automaticallyAdjustKeyboardInsets
+          contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 60, paddingHorizontal: 28 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.topRow}>
             <Tap onPress={() => (haptic.lens(), nav().pop())} style={[styles.close, { borderColor: c.obsRule }]} accessibilityLabel="Dış Göz’ü kapat">
               <Icon name="close" size={16} color={dim} />
@@ -147,17 +148,21 @@ export function ObserverScreen({ id }: { id: NodeId }) {
           <Text style={[styles.colophon, { color: dim }]}>Dosya açıldı {stamp(opened)} · Sofia Cortex · Dış Göz</Text>
         </ScrollView>
       </Animated.View>
+      <TopScrim color={c.obsPaper} />
     </View>
   );
 }
 
+/** Editorial lead-in: the opening words set in spaced capitals, the rest in roman. */
 function DropCapParagraph({ text, ink }: { text: string; ink: string }) {
-  const first = text.slice(0, 1);
-  const rest = text.slice(1);
+  const words = text.split(' ');
+  const n = Math.min(3, Math.max(1, words.findIndex((w) => /[.,;:!?]$/.test(w)) + 1 || 3));
+  const lead = words.slice(0, n).join(' ');
+  const rest = words.slice(n).join(' ');
   return (
     <Text style={[styles.body, { color: ink }]}>
-      <Text style={{ fontFamily: font.serifSemi, fontSize: 52, lineHeight: 52 }}>{first}</Text>
-      {rest}
+      <Text style={{ fontFamily: font.serifSemi, letterSpacing: 1.6, fontSize: 17 }}>{lead.toLocaleUpperCase('tr-TR')}</Text>
+      {rest ? ' ' + rest : ''}
     </Text>
   );
 }
@@ -210,7 +215,7 @@ function Protocol({ nodeId, existing }: { nodeId: NodeId; existing: { id: NodeId
               }}
               submitBehavior="submit"
               returnKeyType="next"
-              placeholder={i === 0 ? 'Örn. Bugün 17:00’de İK’ya iki soru e-postala' : 'Sonraki adım…'}
+              placeholder={i === 0 ? 'Örn. 17:00’de İK’ya iki soru yaz' : 'Sonraki adım…'}
               placeholderTextColor={c.obsInkDim + '99'}
               selectionColor={c.obsStamp}
               style={[styles.protoLine, { color: c.obsInk, flex: 1, paddingVertical: 10 }]}

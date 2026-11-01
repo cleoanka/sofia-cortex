@@ -34,6 +34,7 @@ export function applyDevRoute(): void {
   const go = (url: string | null | undefined) => {
     if (!url) return;
     const r = routeFromUrl(url);
+    if (__DEV__) console.log('[sofia] link', url, r ? r.map((x) => x.name).join('>') : 'unresolved');
     if (r) nav().reset(r);
   };
   Linking.getInitialURL().then(go).catch(() => {});

@@ -25,7 +25,13 @@ interface Model {
   labels: string[];
   edges: { a: number; b: number; w: number }[];
   degree: Uint16Array;
+  /** Label priority (hubs first) — computed once per model, not per frame. */
+  order: number[];
+  /** Truncated label + measured width cache. */
+  text: { label: string; w: number }[];
 }
+
+const labelFont = matchFont({ fontFamily: Platform.select({ ios: 'Helvetica Neue', default: 'sans-serif' }), fontSize: 11, fontWeight: '500' });
 
 function buildModel(e: CortexEngine, focus: NodeId | null, filters: Filters): Model {
   const g = e.graph(focus ? { id: focus, depth: 2 } : undefined);
@@ -61,7 +67,13 @@ function buildModel(e: CortexEngine, focus: NodeId | null, filters: Filters): Mo
     radii[i] = kinds[i] === 3 ? 3.4 : 3.6 + Math.min(9, Math.sqrt(degree[i]) * 1.9);
     labels.push(id.startsWith('#') ? id : e.get(id)?.title || 'Adsız');
   });
-  return { ids: keep.map((o) => g.ids[o]), kinds, radii, labels, edges, degree };
+  const order = [...labels.keys()].sort((a, b) => degree[b] - degree[a] || radii[b] - radii[a]);
+  const text = labels.map((l) => {
+    const raw = l.replace(/→/g, '›');
+    const label = raw.length > 24 ? raw.slice(0, 23).trimEnd() + '…' : raw;
+    return { label, w: labelFont.measureText(label).width };
+  });
+  return { ids: keep.map((o) => g.ids[o]), kinds, radii, labels, edges, degree, order, text };
 }
 
 interface Filters {
@@ -71,10 +83,43 @@ interface Filters {
   done: boolean;
 }
 
-const labelFont = matchFont({ fontFamily: Platform.select({ ios: 'Helvetica Neue', default: 'sans-serif' }), fontSize: 11, fontWeight: '500' });
 
-/** Records one frame as a single SkPicture: five paths, one blur, ≤80 labels. */
-function record(m: Model, sim: ForceSim, c: Palette, selected: number, scale: number): SkPicture {
+type Paints = ReturnType<typeof makePaints>;
+const placed: number[] = [];
+
+/** Every paint the graph uses, allocated once per palette. */
+function makePaints(c: Palette) {
+  const paint = (color: string, stroke = 0) => {
+    const p = Skia.Paint();
+    p.setAntiAlias(true);
+    p.setColor(Skia.Color(color));
+    if (stroke) {
+      p.setStyle(1);
+      p.setStrokeWidth(stroke);
+    }
+    return p;
+  };
+  const halo = paint(c.amber);
+  halo.setAlphaf(0.45);
+  halo.setMaskFilter(Skia.MaskFilter.MakeBlur(BlurStyle.Normal, 6, true));
+  return {
+    edge: paint(c.graphEdge, 1),
+    halo,
+    done: paint(c.amber),
+    note: paint(c.graphNode),
+    activeFill: paint(c.graphBg),
+    activeRing: paint(c.accent, 1.8),
+    blockedFill: paint(c.accentSoft),
+    blockedRing: paint(c.accent, 2.6),
+    tag: paint(c.graphTag),
+    select: paint(c.text, 1.5),
+    label: paint(c.textDim),
+    labelStrong: paint(c.text),
+  };
+}
+
+/** Records one frame as a single SkPicture: five paths, one blur, ≤140 labels. Nothing else allocates. */
+function record(m: Model, sim: ForceSim, P: Paints, selected: number, scale: number): SkPicture {
   const xs = sim.xs;
   const ys = sim.ys;
   let edges = '';
@@ -89,56 +134,61 @@ function record(m: Model, sim: ForceSim, c: Palette, selected: number, scale: nu
   }
   const rec = Skia.PictureRecorder();
   const cv = rec.beginRecording(Skia.XYWHRect(-1e5, -1e5, 2e5, 2e5));
-  const paint = (color: string, stroke = 0) => {
-    const p = Skia.Paint();
-    p.setAntiAlias(true);
-    p.setColor(Skia.Color(color));
-    if (stroke) {
-      p.setStyle(1);
-      p.setStrokeWidth(stroke);
-    }
-    return p;
-  };
   const ep = Skia.Path.MakeFromSVGString(edges);
-  if (ep) cv.drawPath(ep, paint(c.graphEdge, 1 / Math.max(0.6, scale)));
+  if (ep) {
+    P.edge.setStrokeWidth(1 / Math.max(0.6, scale));
+    cv.drawPath(ep, P.edge);
+  }
   const p2 = buckets[2] && Skia.Path.MakeFromSVGString(buckets[2]);
   if (p2) {
-    const halo = paint(c.amber);
-    halo.setAlphaf(0.45);
-    halo.setMaskFilter(Skia.MaskFilter.MakeBlur(BlurStyle.Normal, 6, true));
-    cv.drawPath(p2, halo);
-    cv.drawPath(p2, paint(c.amber));
+    cv.drawPath(p2, P.halo);
+    cv.drawPath(p2, P.done);
   }
   const p0 = buckets[0] && Skia.Path.MakeFromSVGString(buckets[0]);
-  if (p0) cv.drawPath(p0, paint(c.graphNode));
+  if (p0) cv.drawPath(p0, P.note);
   const p1 = buckets[1] && Skia.Path.MakeFromSVGString(buckets[1]);
   if (p1) {
-    cv.drawPath(p1, paint(c.graphBg));
-    cv.drawPath(p1, paint(c.accent, 1.8));
+    cv.drawPath(p1, P.activeFill);
+    cv.drawPath(p1, P.activeRing);
   }
   const p4 = buckets[4] && Skia.Path.MakeFromSVGString(buckets[4]);
   if (p4) {
-    cv.drawPath(p4, paint(c.accentSoft));
-    cv.drawPath(p4, paint(c.accent, 2.6));
+    cv.drawPath(p4, P.blockedFill);
+    cv.drawPath(p4, P.blockedRing);
   }
   const p3 = buckets[3] && Skia.Path.MakeFromSVGString(buckets[3]);
-  if (p3) cv.drawPath(p3, paint(c.graphTag));
+  if (p3) cv.drawPath(p3, P.tag);
 
-  if (selected >= 0) {
-    const r = m.radii[selected] + 6;
-    cv.drawCircle(xs[selected], ys[selected], r, paint(c.text, 1.5));
+  if (selected >= 0) cv.drawCircle(xs[selected], ys[selected], m.radii[selected] + 6, P.select);
+
+  // Labels: hubs first, then greedy collision culling — a label that would
+  // overlap one already placed is skipped, so text never piles up.
+  const budget = scale > 1.2 ? 140 : scale > 0.7 ? 70 : 40;
+  placed.length = 0;
+  const pad = 3 / Math.max(0.5, scale);
+  let drawn = 0;
+  for (let k = -1; k < m.order.length && drawn < budget; k++) {
+    const i = k < 0 ? selected : m.order[k];
+    if (i < 0 || (k >= 0 && i === selected)) continue;
+    const { label, w } = m.text[i];
+    const x0 = xs[i] - w / 2 - pad;
+    const y0 = ys[i] + m.radii[i] + 2;
+    const x1 = x0 + w + pad * 2;
+    const y1 = y0 + 14 + pad;
+    let hit = false;
+    for (let q = 0; q < placed.length && !hit; q += 4) hit = x0 < placed[q + 2] && x1 > placed[q] && y0 < placed[q + 3] && y1 > placed[q + 1];
+    if (hit && i !== selected) continue;
+    placed.push(x0, y0, x1, y1);
+    drawn++;
+    cv.drawText(label, xs[i] - w / 2, ys[i] + m.radii[i] + 13, i === selected || m.degree[i] > 3 ? P.labelStrong : P.label, labelFont);
   }
-  // Labels: hubs always, everything once zoomed in.
-  const order = [...m.ids.keys()].sort((a, b) => m.degree[b] - m.degree[a]);
-  const budget = scale > 1.5 ? 140 : scale > 0.9 ? 60 : 18;
-  const tp = paint(c.textDim);
-  const tpStrong = paint(c.text);
-  for (let k = 0; k < Math.min(budget, order.length); k++) {
-    const i = order[k];
-    const label = m.labels[i].length > 26 ? m.labels[i].slice(0, 25) + '…' : m.labels[i];
-    const w = labelFont.measureText(label).width;
-    cv.drawText(label, xs[i] - w / 2, ys[i] + m.radii[i] + 13, i === selected || m.degree[i] > 4 ? tpStrong : tp, labelFont);
-  }
+  return rec.finishRecordingAsPicture();
+}
+
+/** Skia's Picture node rejects null; the first frame draws an empty recording. */
+function emptyPicture(): SkPicture {
+  const rec = Skia.PictureRecorder();
+  rec.beginRecording(Skia.XYWHRect(0, 0, 1, 1));
   return rec.finishRecordingAsPicture();
 }
 
@@ -153,8 +203,9 @@ export function GraphScreen({ focus: initialFocus }: { focus?: NodeId }) {
   const [selected, setSelected] = useState(-1);
   const [asleep, setAsleep] = useState(false);
   const model = useMemo(() => buildModel(e, focus, filters), [e, focus, filters, v]);
-  const sim = useRef(new ForceSim({ springLength: 54, repulsion: 700 })).current;
-  const pic = useSharedValue<SkPicture | null>(null);
+  const paints = useMemo(() => makePaints(c), [c]);
+  const sim = useRef(new ForceSim({ springLength: 54, sleepEnergy: 0.04 })).current;
+  const pic = useSharedValue<SkPicture>(emptyPicture());
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
   const sc = useSharedValue(1);
@@ -163,10 +214,12 @@ export function GraphScreen({ focus: initialFocus }: { focus?: NodeId }) {
   const last = useRef(0);
   const selRef = useRef(-1);
   const fitted = useRef(false);
+  const userMoved = useRef(false);
+  const frame = useRef(0);
 
   const draw = useCallback(() => {
-    pic.value = record(model, sim, c, selRef.current, scaleJS.current);
-  }, [model, c]);
+    pic.value = record(model, sim, paints, selRef.current, scaleJS.current);
+  }, [model, paints]);
 
   const loop = useCallback(
     (t: number) => {
@@ -175,11 +228,13 @@ export function GraphScreen({ focus: initialFocus }: { focus?: NodeId }) {
       sim.step(dt);
       draw();
       if (!fitted.current && sim.count > 0) fitCamera(false);
+      // While settling, the camera breathes with the graph (until the user takes over).
+      else if (!userMoved.current && ++frame.current % 12 === 0) fitCamera(true);
       if (sim.asleep) {
         raf.current = null;
         last.current = 0;
         setAsleep(true);
-        fitCamera(true);
+        if (!userMoved.current) fitCamera(true);
         return;
       }
       raf.current = requestAnimationFrame(loop);
@@ -198,24 +253,30 @@ export function GraphScreen({ focus: initialFocus }: { focus?: NodeId }) {
 
   function fitCamera(animated: boolean) {
     const b = sim.bounds();
-    const w = Math.max(80, b.maxX - b.minX);
-    const h = Math.max(80, b.maxY - b.minY);
-    const s = Math.min(2.2, Math.max(0.15, Math.min((width - 60) / w, (height - 300) / h)));
+    // Pad for labels; frame inside the visible band between the controls and the legend.
+    const w = Math.max(80, b.maxX - b.minX + 150);
+    const h = Math.max(80, b.maxY - b.minY + 40);
+    const top = insets.top + 110;
+    const bottom = insets.bottom + 70;
+    const s = Math.min(1.6, Math.max(0.12, Math.min((width - 24) / w, (height - top - bottom) / h)));
     const cx = (b.minX + b.maxX) / 2;
-    const cy = (b.minY + b.maxY) / 2;
-    if (!fitted.current || animated) {
-      if (animated && fitted.current) return;
-      fitted.current = true;
-      scaleJS.current = s;
-      sc.value = animated ? withSpring(s, spring.lens) : s;
-      tx.value = animated ? withSpring(-cx * s, spring.lens) : -cx * s;
-      ty.value = animated ? withSpring(-cy * s, spring.lens) : -cy * s;
-    }
+    const cy = (b.minY + b.maxY) / 2 + 12;
+    const bandCenter = (top - bottom) / 2;
+    fitted.current = true;
+    scaleJS.current = s;
+    sc.value = animated ? withSpring(s, spring.lens) : s;
+    tx.value = animated ? withSpring(-cx * s, spring.lens) : -cx * s;
+    ty.value = animated ? withSpring(-cy * s + bandCenter, spring.lens) : -cy * s + bandCenter;
   }
 
   useEffect(() => {
     sim.setGraph(model.ids, Array.from(model.radii), model.edges);
+    // Pre-warm off-screen within an 80ms budget: the user sees only the last,
+    // graceful part of the settle — never the chaotic first second.
+    const t0 = performance.now();
+    for (let k = 0; k < 820 && !sim.asleep && performance.now() - t0 < 80; k++) sim.step(16.7);
     fitted.current = false;
+    userMoved.current = false;
     selRef.current = -1;
     setSelected(-1);
     wake(1);
@@ -231,38 +292,42 @@ export function GraphScreen({ focus: initialFocus }: { focus?: NodeId }) {
   }, [selected, draw]);
 
   // ─── gestures: camera on the UI thread; node dragging + taps on JS ───
-  const startTx = useSharedValue(0);
-  const startTy = useSharedValue(0);
-  const startSc = useSharedValue(1);
+  const markMoved = useCallback(() => {
+    userMoved.current = true;
+  }, []);
+  const onScale = useCallback(
+    (s: number) => {
+      scaleJS.current = s;
+      draw();
+    },
+    [draw],
+  );
+  // Incremental camera math: pan and pinch compose instead of fighting over a shared origin.
   const pan = usePanGesture({
-    maxPointers: 2,
-    onBegin: () => {
+    maxPointers: 1,
+    onActivate: () => {
       'worklet';
-      startTx.value = tx.value;
-      startTy.value = ty.value;
+      scheduleOnRN(markMoved);
     },
     onUpdate: (ev) => {
       'worklet';
-      tx.value = startTx.value + ev.translationX;
-      ty.value = startTy.value + ev.translationY;
+      tx.value += ev.changeX;
+      ty.value += ev.changeY;
     },
   });
   const pinch = usePinchGesture({
-    onBegin: (ev) => {
+    onActivate: () => {
       'worklet';
-      startSc.value = sc.value;
-      startTx.value = tx.value;
-      startTy.value = ty.value;
-      void ev;
+      scheduleOnRN(markMoved);
     },
     onUpdate: (ev) => {
       'worklet';
-      const s = Math.min(6, Math.max(0.08, startSc.value * ev.scale));
+      const s = Math.min(6, Math.max(0.08, sc.value * ev.scaleChange));
+      const k = s / sc.value;
       const fx = ev.focalX - width / 2;
       const fy = ev.focalY - height / 2;
-      const k = s / startSc.value;
-      tx.value = fx - (fx - startTx.value) * k;
-      ty.value = fy - (fy - startTy.value) * k;
+      tx.value = fx - (fx - tx.value) * k;
+      ty.value = fy - (fy - ty.value) * k;
       sc.value = s;
     },
     onDeactivate: () => {
@@ -271,13 +336,6 @@ export function GraphScreen({ focus: initialFocus }: { focus?: NodeId }) {
       scheduleOnRN(onScale, sc.value);
     },
   });
-  const onScale = useCallback(
-    (s: number) => {
-      scaleJS.current = s;
-      draw();
-    },
-    [draw],
-  );
 
   const toWorld = (sx: number, sy: number) => ({ x: (sx - width / 2 - tx.value) / sc.value, y: (sy - height / 2 - ty.value) / sc.value });
 
@@ -307,7 +365,12 @@ export function GraphScreen({ focus: initialFocus }: { focus?: NodeId }) {
       }
     },
     onUpdate: (ev) => {
-      if (dragIndex.current < 0) return;
+      if (dragIndex.current < 0) {
+        // Long-press landed on empty canvas: behave like a normal camera pan.
+        tx.value += ev.changeX;
+        ty.value += ev.changeY;
+        return;
+      }
       const w = toWorld(ev.x, ev.y);
       sim.pin(dragIndex.current, w.x, w.y);
       if (raf.current == null) wake(0.3);
@@ -337,7 +400,7 @@ export function GraphScreen({ focus: initialFocus }: { focus?: NodeId }) {
       <GestureDetector gesture={gesture}>
         <Canvas style={StyleSheet.absoluteFill}>
           <Group transform={transform}>
-            <Picture picture={pic as never} />
+            <Picture picture={pic} />
           </Group>
         </Canvas>
       </GestureDetector>

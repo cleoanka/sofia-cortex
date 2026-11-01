@@ -1,4 +1,4 @@
-import { Canvas, Circle, RadialGradient, vec } from '@shopify/react-native-skia';
+import { Canvas, RadialGradient, Rect, vec } from '@shopify/react-native-skia';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { GestureDetector, useLongPressGesture } from 'react-native-gesture-handler';
@@ -27,7 +27,7 @@ import { nav } from '../state/nav';
 import { usePalette } from '../theme/ThemeProvider';
 import { font, radius, spring } from '../theme/tokens';
 import { Icon } from '../ui/Icon';
-import { Tap } from '../ui/primitives';
+import { Tap, upper } from '../ui/primitives';
 import { plainPreview } from '../ui/richText';
 
 const HOLD_MS = 650;
@@ -80,9 +80,9 @@ export function AutopilotScreen({ scope, startId }: { scope: NodeId | null; star
   return (
     <View style={{ flex: 1, backgroundColor: c.tunnelBg }}>
       <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Circle cx={width / 2} cy={height * 0.44} r={glowR} opacity={glowO}>
-          <RadialGradient c={vec(width / 2, height * 0.44)} r={width * 0.8} colors={[c.tunnelGlow, 'transparent']} />
-        </Circle>
+        <Rect x={0} y={0} width={width} height={height} opacity={glowO}>
+          <RadialGradient c={vec(width / 2, height * 0.44)} r={glowR} colors={[c.tunnelGlow, c.tunnelBg + '00']} />
+        </Rect>
       </Canvas>
 
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
@@ -96,7 +96,13 @@ export function AutopilotScreen({ scope, startId }: { scope: NodeId | null; star
       </View>
 
       {current ? (
-        <TaskStage key={current} id={current} onDone={done} onSkip={() => (haptic.soft(), setSkipped((s) => new Set(s).add(current)))} />
+        <TaskStage
+          key={current}
+          id={current}
+          onDone={done}
+          onSplit={() => setTick((t) => t + 1)}
+          onSkip={() => (haptic.soft(), setSkipped((s) => new Set(s).add(current)))}
+        />
       ) : (
         <Animated.View entering={FadeIn.duration(900)} style={styles.empty}>
           <Text style={[styles.emptyTitle, { color: c.text }]}>Tünel boş.</Text>
@@ -121,7 +127,7 @@ function Elapsed({ since, color }: { since: number; color: string }) {
   return <Text style={[styles.mono, { color, marginTop: 2 }]}>{`${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`}</Text>;
 }
 
-function TaskStage({ id, onDone, onSkip }: { id: NodeId; onDone: () => void; onSkip: () => void }) {
+function TaskStage({ id, onDone, onSplit, onSkip }: { id: NodeId; onDone: () => void; onSplit: () => void; onSkip: () => void }) {
   const c = usePalette();
   const e = useEngine();
   const n = useNode(id);
@@ -131,6 +137,7 @@ function TaskStage({ id, onDone, onSkip }: { id: NodeId; onDone: () => void; onS
   const hold = useSharedValue(0);
   const melt = useSharedValue(0);
   const enter = useSharedValue(0);
+  const fired = useSharedValue(0);
   const C = 2 * Math.PI * (RING / 2 - 4);
 
   useEffect(() => {
@@ -138,6 +145,7 @@ function TaskStage({ id, onDone, onSkip }: { id: NodeId; onDone: () => void; onS
   }, []);
 
   const complete = () => {
+    if (e.get(id)?.done) return;
     const r = e.toggle(id, true);
     if (r.cascaded.length) haptic.cascade();
     else haptic.thud();
@@ -151,16 +159,21 @@ function TaskStage({ id, onDone, onSkip }: { id: NodeId; onDone: () => void; onS
     maxDistance: 40,
     onBegin: () => {
       'worklet';
+      if (fired.value) return;
       hold.value = withTiming(1, { duration: HOLD_MS, easing: Easing.out(Easing.cubic) });
       scheduleOnRN(haptic.soft);
     },
     onActivate: () => {
       'worklet';
+      if (fired.value) return;
+      fired.value = 1;
+      hold.value = 1;
       scheduleOnRN(complete);
     },
-    onFinalize: (ev) => {
+    onFinalize: () => {
       'worklet';
-      if (ev.canceled || hold.value < 0.999) hold.value = withSpring(0, spring.snappy);
+      // Released early: the ring unwinds. Completed: it stays full while the card melts.
+      if (!fired.value) hold.value = withSpring(0, spring.snappy);
     },
   });
 
@@ -183,10 +196,16 @@ function TaskStage({ id, onDone, onSkip }: { id: NodeId; onDone: () => void; onS
       <View style={styles.center}>
         {path.length ? (
           <Text numberOfLines={1} style={[styles.path, { color: c.textFaint }]}>
-            {path.slice(-2).join('  ›  ')}
+            {upper(path.slice(-2).join('  ›  '))}
           </Text>
         ) : null}
         <Text style={[styles.title, { color: c.text }]}>{n.title || 'Adsız görev'}</Text>
+        {n.reminderHook ? (
+          <View style={[styles.hook, { backgroundColor: c.amberSoft }]}>
+            <Text style={[styles.hookLabel, { color: c.amberInk }]}>{upper('İlk hareket')}</Text>
+            <Text style={[styles.hookText, { color: c.text }]}>{n.reminderHook}</Text>
+          </View>
+        ) : null}
         {preview ? <Text style={[styles.preview, { color: c.textDim }]}>{preview}</Text> : null}
       </View>
 
@@ -219,7 +238,7 @@ function TaskStage({ id, onDone, onSkip }: { id: NodeId; onDone: () => void; onS
               </Animated.View>
             </View>
           </GestureDetector>
-          <Text style={[styles.hint, { color: c.textFaint }]}>Bitince basılı tut</Text>
+          <Text style={[styles.hint, { color: c.textFaint }]}>{upper('Bitince basılı tut')}</Text>
           <View style={styles.actions}>
             <Tap onPress={() => (haptic.select(), setA(''), setB(''), setSplitting(true))} style={[styles.secondary, { borderColor: c.hairline }]}>
               <Icon name="split" size={17} color={c.text} />
@@ -239,7 +258,7 @@ function TaskStage({ id, onDone, onSkip }: { id: NodeId; onDone: () => void; onS
     e.split(id, a, b);
     haptic.cascade();
     setSplitting(false);
-    onDone();
+    onSplit();
   }
 }
 
@@ -249,11 +268,11 @@ const styles = StyleSheet.create({
   mono: { fontFamily: font.uiMedium, fontSize: 12, letterSpacing: 1.2, fontVariant: ['tabular-nums'] },
   stage: { flex: 1, justifyContent: 'space-between', paddingHorizontal: 30, paddingBottom: 10 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  path: { fontFamily: font.uiMedium, fontSize: 12.5, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 18 },
+  path: { fontFamily: font.uiMedium, fontSize: 12.5, letterSpacing: 0.6, marginBottom: 18 },
   title: { fontFamily: font.uiSemi, fontSize: 34, lineHeight: 41, letterSpacing: -1.1, textAlign: 'center' },
   preview: { fontFamily: font.ui, fontSize: 15.5, lineHeight: 22, textAlign: 'center', marginTop: 16, maxWidth: 320 },
   core: { width: RING - 22, height: RING - 22, borderRadius: (RING - 22) / 2, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  hint: { fontFamily: font.uiMedium, fontSize: 12, letterSpacing: 0.8, marginTop: 14, textTransform: 'uppercase' },
+  hint: { fontFamily: font.uiMedium, fontSize: 12, letterSpacing: 0.8, marginTop: 14 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 30, alignItems: 'center' },
   secondary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 44, paddingHorizontal: 16, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
   ghost: { height: 44, paddingHorizontal: 12, justifyContent: 'center' },
@@ -261,6 +280,9 @@ const styles = StyleSheet.create({
   split: { borderRadius: radius.l, borderWidth: StyleSheet.hairlineWidth, padding: 18 },
   splitLabel: { fontFamily: font.uiSemi, fontSize: 10.5, letterSpacing: 1.8, marginBottom: 6 },
   splitInput: { fontFamily: font.ui, fontSize: 17, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  hook: { marginTop: 22, borderRadius: radius.m, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center', maxWidth: 330 },
+  hookLabel: { fontFamily: font.uiSemi, fontSize: 10.5, letterSpacing: 1.8 },
+  hookText: { fontFamily: font.uiMedium, fontSize: 16.5, lineHeight: 23, marginTop: 4, textAlign: 'center', letterSpacing: -0.2 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 },
   emptyTitle: { fontFamily: font.uiSemi, fontSize: 30, letterSpacing: -0.9 },
   emptySub: { fontFamily: font.ui, fontSize: 16, lineHeight: 23, marginTop: 10, textAlign: 'center' },

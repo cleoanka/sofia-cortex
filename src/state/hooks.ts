@@ -1,4 +1,5 @@
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useRef, useSyncExternalStore } from 'react';
+import { useSceneDepth } from './scene';
 import { CortexEngine } from '../engine/CortexEngine';
 import type { CortexNode, NodeId, Progress } from '../engine/types';
 import { getEngine } from '../platform/db';
@@ -32,9 +33,16 @@ export function useProgress(id: NodeId): Progress {
   });
 }
 
-/** Coarse global version — for derived views (pinned, search, graph, queue). */
+/**
+ * Coarse global version — for derived views (pinned, search, graph, queue).
+ * Frozen while the screen is covered by another: hidden screens do zero work,
+ * and catch up in one render when they surface again.
+ */
 export function useVersion(): number {
   const e = getEngine();
-  const sub = useCallback((fn: () => void) => e.subscribeAll(fn), [e]);
-  return useSyncExternalStore(sub, () => e.version);
+  const visible = useSceneDepth() === 0;
+  const frozen = useRef(e.version);
+  if (visible) frozen.current = e.version;
+  const sub = useCallback((fn: () => void) => (visible ? e.subscribeAll(fn) : () => {}), [e, visible]);
+  return useSyncExternalStore(sub, () => (visible ? e.version : frozen.current));
 }

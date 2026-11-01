@@ -91,8 +91,7 @@ const VAULT: Spec[] = [
     b:
       'Kafamda dönüp duruyor. Staj teklifi geldi, ama yaz okuluna gitmezsem bir dönem kaybedeceğim gibi hissediyorum. ' +
       'Herkes stajın daha değerli olduğunu söylüyor ama ben yorgunum ve yazın dinlenmezsem güz dönemini kaldıramam diye korkuyorum. ' +
-      'Bir yandan da teklifi reddedersem bir daha böyle bir şans gelmez diye düşünüyorum. Cuma gününe kadar cevap vermem lazım ve hiçbir şey yapmadan bekliyorum.\n\n' +
-      'Bunu kartı çevirip Dış Göz ile oku. Sonra kıdemli bir stratejist gibi reçeteyi yaz. #karar',
+      'Bir yandan da teklifi reddedersem bir daha böyle bir şans gelmez diye düşünüyorum. Cuma gününe kadar cevap vermem lazım ve hiçbir şey yapmadan bekliyorum. #karar',
   },
   {
     t: 'Proje: Kişisel Web Sitesi',

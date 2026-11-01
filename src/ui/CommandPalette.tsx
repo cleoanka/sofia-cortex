@@ -63,6 +63,7 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
   const input = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const searchMs = useRef(0);
   const close = () => {
     Keyboard.dismiss();
     nav().openPalette(null);
@@ -150,10 +151,16 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
       return out;
     }
 
+    const t0 = performance.now();
     const hits = e.search(text, 30);
+    searchMs.current = performance.now() - t0;
     for (const h of hits) {
       const n = e.get(h.id);
-      out.push({ key: h.id, icon: n?.isTask ? 'task' : 'note', title: h.title || 'Adsız', sub: h.snippet, run: go(h.id) });
+      // Links read as prose in results; a title-only hit shows where it lives instead of repeating itself.
+      const snip = h.snippet.replace(/\[\[([^\]|]*)\|?([^\]]*)\]\]/g, (_m, t: string, al: string) => al || t).replace(/\[\[|\]\]/g, '');
+      const plain = snip.replace(/[\u0001\u0002]/g, '');
+      const path = e.path(h.id).slice(0, -1).map((p) => p.title).join(' › ') || 'Cortex';
+      out.push({ key: h.id, icon: n?.isTask ? 'task' : 'note', title: h.title || 'Adsız', sub: plain.trim() === h.title.trim() ? path : snip, run: go(h.id) });
     }
     if (text.startsWith('#')) {
       for (const id of e.tagged(text)) if (!hits.some((h) => h.id === id)) out.push({ key: id, icon: 'note', title: e.get(id)?.title || 'Adsız', sub: text, run: go(id) });
@@ -173,11 +180,6 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
     return out;
   }, [q, mode, moveId, e]);
 
-  const ms = useMemo(() => {
-    const s = performance.now();
-    if (q.trim() && !q.startsWith('>')) e.search(q.trim(), 30);
-    return performance.now() - s;
-  }, [q]);
 
   return (
     <>
@@ -202,7 +204,7 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
               onSubmitEditing={() => items[0]?.run()}
               style={[type.row, { flex: 1, color: c.text, fontSize: 17 }]}
             />
-            {q && !q.startsWith('>') && mode === 'search' ? <Text style={[type.mono, { color: c.textFaint }]}>{ms.toFixed(1)}ms</Text> : null}
+            {q && !q.startsWith('>') && mode === 'search' ? <Text style={[type.mono, { color: c.textFaint }]}>{searchMs.current.toFixed(1)}ms</Text> : null}
             <Tap onPress={close} hitSlop={10} accessibilityLabel="Kapat">
               <Icon name="close" size={17} color={c.textDim} />
             </Tap>

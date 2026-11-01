@@ -142,7 +142,7 @@ export class CortexEngine {
 
   // ───────────────────────────── transactions ─────────────────────────────
 
-  transact<T>(label: string, fn: () => T): T {
+  transact<T>(label: string, fn: () => T, opts: { history?: boolean } = {}): T {
     if (this.tx) return fn();
     this.tx = new Map();
     let result: T;
@@ -163,6 +163,11 @@ export class CortexEngine {
     for (const [id, prev] of before) if (sameNode(prev, after.get(id))) (before.delete(id), after.delete(id));
     if (before.size === 0) return result;
     this.persist(before.keys());
+    // System bookkeeping (timers expiring, notification ids) never enters the user's history.
+    if (opts.history === false) {
+      this.emit(new Set(before.keys()), before);
+      return result;
+    }
     const top = this.undoStack.at(-1);
     const t = this.clock();
     // Typing is one thought, not a hundred: consecutive edits to the same node coalesce.
@@ -590,7 +595,10 @@ export class CortexEngine {
       return out;
     }
     for (const p of this.pinned()) visit(p.id);
-    for (const c of this.kids.get(ROOT) ?? EMPTY) visit(c);
+    // Unprocessed captures come last: planned work first, the inbox after.
+    const roots = this.kids.get(ROOT) ?? EMPTY;
+    for (const c of roots) if (this.nodes.get(c)!.role !== 'inbox') visit(c);
+    for (const c of roots) visit(c);
     return out;
   }
 
@@ -655,7 +663,11 @@ export class CortexEngine {
     });
   }
 
-  update(id: NodeId, patch: Partial<Pick<CortexNode, 'title' | 'body' | 'collapsed' | 'steepUntil' | 'reminderAt' | 'reminderHook' | 'reminderId'>>): void {
+  update(
+    id: NodeId,
+    patch: Partial<Pick<CortexNode, 'title' | 'body' | 'collapsed' | 'steepUntil' | 'reminderAt' | 'reminderHook' | 'reminderId'>>,
+    opts: { history?: boolean } = {},
+  ): void {
     this.transact('Düzenle', () => {
       const n = this.must(id);
       const next = { ...n, ...patch, updatedAt: this.clock() };
@@ -673,12 +685,14 @@ export class CortexEngine {
         }
       }
       this.put(next);
-    });
+    }, opts);
   }
 
   setTask(id: NodeId, isTask: boolean): void {
     this.transact(isTask ? 'Göreve çevir' : 'Nota çevir', () => {
       const n = this.must(id);
+      // Turning a task into a note would silently dissolve a seal — that is re-planning.
+      if (n.isTask && !isTask) this.assertUnlocked(n.parentId, id);
       const p = this.progress(id);
       const done = isTask && p.total > 0 ? p.done === p.total : isTask ? n.done : false;
       this.put({ ...n, isTask, done, doneAt: done ? n.doneAt ?? this.clock() : null, updatedAt: this.clock() });

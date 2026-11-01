@@ -263,3 +263,22 @@ describe('veri egemenliği', () => {
     expect(new Set(paths.map((p) => p.toLowerCase())).size).toBe(paths.length);
   });
 });
+
+describe('inceleme bulguları', () => {
+  test('R10: mühürlü planda görev nota çevrilemez', () => {
+    const { e } = mk();
+    const p = e.create(null, { title: 'Plan' });
+    const a = e.create(p, { title: 'a', isTask: true });
+    e.setSealed(p, true);
+    expect(() => e.setTask(a, false)).toThrow();
+    expect(e.isLocked(p)).toBe(true);
+  });
+  test('R14: sistem güncellemesi geri-al geçmişine girmez', () => {
+    const { e } = mk();
+    const a = e.create(null, { title: 'a' });
+    e.clearHistory();
+    e.update(a, { steepUntil: null, reminderId: 'x' }, { history: false });
+    expect(e.canUndo).toBe(false);
+    expect(e.get(a)!.reminderId).toBe('x');
+  });
+});
