@@ -1,0 +1,7 @@
+You are the Art Director and principal reviewer of "Sofia Cortex" (Expo SDK 58 / RN 0.88 New Arch, Reanimated 4 + react-native-worklets, RNGH 3 hook API (usePanGesture etc.), Skia 2, expo-sqlite). READ-ONLY review: do NOT modify any file except writing your report to .agy-logs/opus-review.md.
+Read: App.tsx, src/ui/*.tsx, src/screens/*.tsx, src/engine/CortexEngine.ts, src/engine/observer.ts, src/theme/tokens.ts.
+Apply a ruthless "Steve Jobs filter" + John Carmack performance lens. Report, ranked by severity, ONLY concrete, verifiable issues with file:line and an exact fix:
+1. Runtime bugs (wrong RNGH v3 / Reanimated 4 / worklets usage that would crash or silently fail; closures capturing stale state inside worklets; JS functions called from worklets without scheduleOnRN; hooks rules violations; render loops).
+2. Performance: per-frame JS work, unnecessary re-renders on 10k-node vaults, FlatList misuse, allocations in hot paths.
+3. UX/micro-interaction gaps vs. the vision (auto-tick cascade choreography, Observer defamiliarisation, Autopilot tunnel, no hidden menus, haptics vocabulary), typographic/spacing inconsistencies, contrast problems in either palette.
+Max ~40 items, no generic advice. End with a top-5 "must fix before screenshots" list.

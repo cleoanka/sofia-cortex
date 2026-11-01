@@ -1,0 +1,27 @@
+You are writing ONE self-contained TypeScript module for a React Native app (Sofia Cortex, an Obsidian-like graph of notes). Write exactly two files and nothing else:
+  1) src/graph/physics.ts
+  2) tests/physics.test.ts   (run with `bun test tests/physics.test.ts`; import { test, expect } from 'bun:test')
+Do NOT touch any other file. Do NOT install packages. Pure TS, no imports except types. Must run inside Hermes (no Node APIs).
+
+SPEC — class ForceSim (export it, plus export type SimEdge = { a: number; b: number; w?: number }):
+- Storage: preallocated Float32Array/Float64Array buffers: x, y, vx, vy, mass (radius-ish weight), pinned flags (Uint8Array). Grow capacity by doubling; NEVER allocate in step() (the Barnes-Hut quadtree must use preallocated typed-array node pools: centre-of-mass x/y, mass, child indices, bounds; rebuilt each step, reset by a counter).
+- constructor(opts?: { repulsion?: number (default 900), springLength?: number (default 70), springK?: number (default 0.04), gravity?: number (default 0.012), damping?: number (default 0.86), theta?: number (Barnes-Hut, default 0.9), sleepEnergy?: number (default 0.02 avg kinetic energy per node), sleepFrames?: number (default 24) })
+- setGraph(ids: string[], weights: number[], edges: SimEdge[]): existing ids KEEP their position/velocity; new ids are seeded deterministically near the centroid of their already-placed neighbours (or on a golden-angle spiral if none) with a small deterministic jitter (seeded PRNG, e.g. mulberry32 of string hash). Wakes the sim (alpha = 1).
+- step(dtMs: number): number — one integration tick (semi-implicit/velocity Verlet with damping, dt normalised to 16.67ms and clamped to [0.25, 2] frames). Forces: Barnes-Hut many-body repulsion (inverse-distance, softened with epsilon, scaled by alpha), Hooke springs on edges toward springLength (weighted by w), weak gravity to origin. Alpha cools: alpha += (alphaTarget - alpha) * 0.0228 each step (d3-like), alphaTarget 0 unless dragging (0.3 while any node pinned). Velocity cap to avoid explosions. Pinned nodes keep their pinned x,y and zero velocity. Returns average kinetic energy. If asleep, returns 0 immediately and does nothing (0% CPU).
+- Sleep: when avg kinetic energy < sleepEnergy for sleepFrames consecutive steps AND nothing pinned → asleep = true. getter `asleep: boolean`. wake(alpha = 0.6) clears sleep.
+- pin(index, x, y) / unpin(index) — for finger dragging; pin wakes the sim.
+- getters: count: number; xs: Float32Array (view of live x, length >= count), ys: Float32Array.
+- indexOf(id: string): number (Map lookup), idAt(i): string.
+- hitTest(px: number, py: number, radius: number): number  → index of nearest node within radius or -1 (linear scan ok).
+- bounds(): { minX, minY, maxX, maxY }.
+- Must be deterministic for identical inputs.
+
+TESTS (tests/physics.test.ts), all must pass:
+- two connected nodes converge near springLength-ish distance and the sim falls asleep within 2000 steps;
+- a 200-node random tree (deterministic) settles to sleep, no NaN anywhere;
+- setGraph preserving positions for existing ids;
+- pinning keeps coordinates fixed; unpin + run → sleeps again;
+- asleep step returns 0 and does not change positions;
+- performance: 10000 nodes / 12000 edges, average step time over 30 steps < 25 ms in bun (print the number with console.log);
+- determinism: two sims with same input produce identical positions after 100 steps.
+Then RUN `bun test tests/physics.test.ts` yourself and iterate until everything passes. Finally print a short summary with the perf number.

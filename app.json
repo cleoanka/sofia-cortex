@@ -1,25 +1,63 @@
 {
   "expo": {
-    "name": "sofia-cortex",
+    "name": "Sofia Cortex",
     "slug": "sofia-cortex",
+    "scheme": "sofia",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#090A0C",
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.cleoanka.sofiacortex",
+      "supportsTablet": true,
+      "deploymentTarget": "16.4",
+      "infoPlist": {
+        "CADisableMinimumFrameDurationOnPhone": true,
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSMotionUsageDescription": "Telefonu sallayarak son işlemi geri almak için."
+      }
     },
     "android": {
+      "package": "com.cleoanka.sofiacortex",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#090A0C",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-sqlite",
+        {
+          "enableFTS": true
+        }
+      ],
+      "expo-sharing",
+      "expo-font",
+      "expo-document-picker",
+      [
+        "expo-notifications",
+        {
+          "color": "#F2A33A"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon-light.png",
+          "imageWidth": 220,
+          "backgroundColor": "#FBF9F5",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#090A0C"
+          }
+        }
+      ]
+    ]
   }
 }
