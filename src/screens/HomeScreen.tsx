@@ -1,284 +1,166 @@
-import { memo, useMemo, useRef } from 'react';
+import { memo, useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import type { NodeId } from '../engine/types';
 import { haptic } from '../platform/haptics';
-import { useEngine, useNode, useProgress, useChildren, useVersion } from '../state/hooks';
+import { useChildren, useEngine, useNode, useProgress, useVersion } from '../state/hooks';
 import { nav } from '../state/nav';
-import { usePalette } from '../theme/ThemeProvider';
-import { font, radius, space, spring, type } from '../theme/tokens';
+import { usePalette, useTheme } from '../theme/ThemeProvider';
+import { fadeIn } from '../theme/motion';
+import { font, type } from '../theme/tokens';
 import { Icon } from '../ui/Icon';
-import { OutlineList, toggleWithChoreography } from '../ui/Outline';
-import { Check, Label, ProgressRing, Surface, Tap, upper } from '../ui/primitives';
-import { QuickCapture } from '../ui/QuickCapture';
-import { TopScrim } from '../ui/TopScrim';
-import { plainPreview } from '../ui/richText';
-
-const PULL = 72;
-
-const DAYS = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
-const MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+import { Hairline, ProgressRing, Tap, TopBar, useBarInset } from '../ui/primitives';
+import { NoteRow } from '../ui/Rows';
 
 function greeting(h: number): string {
-  if (h < 5) return 'Gece sessiz.';
-  if (h < 12) return 'Günaydın.';
-  if (h < 18) return 'İyi günler.';
-  return 'İyi akşamlar.';
+  if (h < 5) return 'İyi geceler';
+  if (h < 12) return 'Günaydın';
+  if (h < 18) return 'İyi günler';
+  if (h < 22) return 'İyi akşamlar';
+  return 'İyi geceler';
 }
 
 export function HomeScreen() {
   const c = usePalette();
+  const e = useEngine();
+  const v = useVersion();
+  const top = useBarInset();
   const insets = useSafeAreaInsets();
-  const pull = useSharedValue(0);
-  const armed = useRef(false);
-
-  const onScroll = (y: number) => {
-    pull.value = Math.max(0, -y);
-    if (-y > PULL && !armed.current) {
-      armed.current = true;
-      haptic.select();
-    } else if (-y < PULL) armed.current = false;
-  };
-  const onEndDrag = (y: number) => {
-    if (-y > PULL) {
-      haptic.lens();
-      nav().openPalette({ mode: 'search' });
-    }
-  };
-
-  const hint = useAnimatedStyle(() => ({
-    opacity: interpolate(pull.value, [10, PULL], [0, 1], Extrapolation.CLAMP),
-    transform: [{ translateY: interpolate(pull.value, [0, PULL], [-12, 8], Extrapolation.CLAMP) }, { scale: interpolate(pull.value, [PULL - 8, PULL + 4], [0.94, 1], Extrapolation.CLAMP) }],
-  }));
+  const { setPref } = useTheme();
+  const roots = useChildren(null);
+  const pinned = useMemo(() => e.pinned(), [e, v]);
+  const next = useMemo(() => e.nextActions(null, 1)[0], [e, v]);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <Animated.View pointerEvents="none" style={[styles.pullHint, { top: insets.top + 6 }, hint]}>
-        <Icon name="search" size={16} color={c.accent} />
-        <Text style={[type.small, { color: c.accent, fontFamily: font.uiMedium }]}>Bırak — Komut Paleti</Text>
-      </Animated.View>
-      <OutlineList
-        rootId={null}
-        maxDepth={1}
-        onScroll={onScroll}
-        onScrollEndDrag={onEndDrag}
-        header={<HomeHeader top={insets.top} />}
-        footer={<HomeFooter />}
-        contentBottom={insets.bottom + 120}
-      />
-      <TopScrim color={c.bg} />
-      <QuickCapture />
-    </View>
-  );
-}
+      <ScrollView contentContainerStyle={{ paddingTop: top + 8, paddingBottom: insets.bottom + 110 }} showsVerticalScrollIndicator={false}>
+        {next ? <NextPill id={next} /> : null}
 
-function HomeHeader({ top }: { top: number }) {
-  const c = usePalette();
-  const e = useEngine();
-  const v = useVersion();
-  const now = new Date();
-  const pinned = useMemo(() => e.pinned(), [e, v]);
-  const queue = useMemo(() => e.nextActions(null), [e, v]);
-  const next = queue[0];
-  const inbox = e.inbox();
-  const inboxCount = inbox ? e.children(inbox.id).length : 0;
-
-  return (
-    <View style={{ paddingTop: top + 10 }}>
-      <View style={styles.topBar}>
-        <View>
-          <Label>
-            {DAYS[now.getDay()]} · {now.getDate()} {MONTHS[now.getMonth()]}
-          </Label>
-          <Text style={[type.display, { color: c.text, marginTop: 6 }]}>{greeting(now.getHours())}</Text>
-        </View>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <RoundButton icon="search" onPress={() => nav().openPalette({ mode: 'search' })} label="Ara" />
-          <RoundButton icon="graph" onPress={() => nav().push({ name: 'graph' })} label="Graf" />
-          <RoundButton icon="gear" onPress={() => nav().push({ name: 'settings' })} label="Ayarlar" />
-        </View>
-      </View>
-
-      <FocusCard nextId={next} open={queue.length} />
-
-      {pinned.length > 0 ? (
-        <>
-          <SectionTitle title="Vitrin" meta={`${pinned.length}`} />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space.xl, gap: 12, paddingBottom: 6 }} decelerationRate="fast" snapToInterval={244} snapToAlignment="start">
-            {pinned.map((p) => (
-              <Portal key={p.id} id={p.id} />
-            ))}
-          </ScrollView>
-        </>
-      ) : null}
-
-      <View style={[styles.sectionRow, { marginTop: 26 }]}>
-        <Text style={[type.headline, { color: c.text }]}>Cortex</Text>
-        {inbox ? (
-          <Tap onPress={() => nav().push({ name: 'node', id: inbox.id })} style={[styles.inboxChip, { backgroundColor: inboxCount ? c.accentSoft : c.surface }]}>
-            <Icon name="inbox" size={15} color={inboxCount ? c.accent : c.textDim} weight={1.8} />
-            <Text style={[type.small, { fontFamily: font.uiMedium, color: inboxCount ? c.accent : c.textDim }]}>
-              Gelen Kutusu{inboxCount ? ` · ${inboxCount}` : ''}
-            </Text>
-          </Tap>
+        {pinned.length > 0 ? (
+          <View style={{ marginTop: 22 }}>
+            <Text style={[type.section, styles.section, { color: c.textDim }]}>Sabitlenenler</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+              {pinned.map((p) => (
+                <PinTile key={p.id} id={p.id} />
+              ))}
+            </ScrollView>
+          </View>
         ) : null}
-      </View>
+
+        <Text style={[type.section, styles.section, { color: c.textDim, marginTop: 24 }]}>Notlar</Text>
+        {roots.length === 0 ? (
+          <Text style={[type.body, { color: c.textDim, paddingHorizontal: 20, paddingTop: 12 }]}>Henüz not yok. ＋ ile başla.</Text>
+        ) : (
+          roots.map((id, i) => (
+            <View key={id}>
+              {i > 0 ? <View style={{ marginRight: 20 }}><Hairline inset={20} /></View> : null}
+              <NoteRow id={id} />
+            </View>
+          ))
+        )}
+      </ScrollView>
+
+      <TopBar
+        left={<Text style={[type.largeTitle, { color: c.text, paddingLeft: 12 }]}>{greeting(new Date().getHours())}</Text>}
+        right={
+          <>
+            <BarIcon icon="search" label="Ara" onPress={() => nav().openPalette({ mode: 'search' })} />
+            <BarIcon icon="graph" label="Graf" onPress={() => nav().push({ name: 'graph' })} />
+            <BarIcon
+              icon={c.scheme === 'dark' ? 'sun' : 'moon'}
+              label="Tema — basılı tut: Ayarlar"
+              onPress={() => {
+                haptic.select();
+                setPref(c.scheme === 'dark' ? 'light' : 'dark');
+              }}
+              onLongPress={() => (haptic.thud(), nav().push({ name: 'settings' }))}
+            />
+          </>
+        }
+      />
+      <Fab />
     </View>
   );
 }
 
-function HomeFooter() {
-  const c = usePalette();
-  const e = useEngine();
-  const roots = useChildren(null);
-  return (
-    <View style={{ paddingHorizontal: space.xl, paddingTop: 10 }}>
-      <Tap
-        onPress={() => {
-          haptic.soft();
-          const id = e.create(null, { title: '' });
-          nav().push({ name: 'node', id });
-        }}
-        style={[styles.newRoot, { borderColor: c.hairline }]}
-      >
-        <Icon name="plus" size={18} color={c.textDim} />
-        <Text style={[type.row, { color: c.textDim }]}>Yeni evren</Text>
-      </Tap>
-      <Text style={[type.small, { color: c.textFaint, textAlign: 'center', marginTop: 22 }]}>
-        {roots.length} evren · sağa kaydır: içeri · sola: dışarı · uzun bas: taşı · kıstır: katla
-      </Text>
-    </View>
-  );
-}
-
-function RoundButton({ icon, onPress, label }: { icon: 'search' | 'graph' | 'gear'; onPress: () => void; label: string }) {
+function BarIcon({ icon, label, onPress, onLongPress }: { icon: 'search' | 'graph' | 'sun' | 'moon'; label: string; onPress: () => void; onLongPress?: () => void }) {
   const c = usePalette();
   return (
-    <Tap accessibilityLabel={label} onPress={onPress} style={[styles.round, { backgroundColor: c.surface, borderColor: c.hairline }]}>
-      <Icon name={icon} size={19} color={c.text} />
+    <Tap onPress={onPress} onLongPress={onLongPress} hitSlop={6} accessibilityLabel={label} style={styles.barIcon}>
+      <Icon name={icon} size={20} color={c.textDim} weight={1.75} />
     </Tap>
   );
 }
 
-function SectionTitle({ title, meta }: { title: string; meta?: string }) {
+/** One calm line: the next atomic step. Tap → Autopilot. */
+function NextPill({ id }: { id: NodeId }) {
   const c = usePalette();
+  const n = useNode(id);
+  if (!n) return null;
   return (
-    <View style={[styles.sectionRow, { marginTop: 26, marginBottom: 12 }]}>
-      <Text style={[type.headline, { color: c.text }]}>{title}</Text>
-      {meta ? <Text style={[type.mono, { color: c.textFaint }]}>{meta}</Text> : null}
-    </View>
-  );
-}
-
-/** The single most important affordance in the app: stop deciding, start doing. */
-function FocusCard({ nextId, open }: { nextId?: NodeId; open: number }) {
-  const c = usePalette();
-  const e = useEngine();
-  const next = useNode(nextId);
-  const path = next ? e.path(next.id).slice(0, -1).map((n) => n.title).filter(Boolean) : [];
-  const glow = useSharedValue(0);
-  const s = useAnimatedStyle(() => ({ transform: [{ scale: 1 - glow.value * 0.015 }] }));
-  return (
-    <Animated.View style={[{ marginHorizontal: space.xl, marginTop: 22 }, s]}>
-      <Tap
-        scaleTo={0.98}
-        onPressIn={() => (glow.value = withSpring(1, spring.snappy))}
-        onPressOut={() => (glow.value = withSpring(0, spring.snappy))}
-        onPress={() => {
-          haptic.lens();
-          nav().push({ name: 'autopilot', scope: null });
-        }}
-      >
-        <Surface style={{ padding: 18, backgroundColor: c.invBg, borderColor: c.scheme === 'dark' ? c.cardBorder : 'transparent' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={[type.micro, { color: c.invAccent }]}>{upper('Sıradaki tek şey')}</Text>
-            <Text style={[type.mono, { color: c.invDim }]}>{open ? `${open} atomik adım` : 'boş'}</Text>
-          </View>
-          <Text numberOfLines={2} style={{ fontFamily: font.uiSemi, fontSize: 20, lineHeight: 26, letterSpacing: -0.5, color: c.invText, marginTop: 10 }}>
-            {next ? next.title : 'Her şey yapıldı. Nefes al.'}
-          </Text>
-          {path.length ? (
-            <Text numberOfLines={1} style={[type.small, { color: c.invDim, marginTop: 4 }]}>
-              {path.join('  ›  ')}
-            </Text>
-          ) : null}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 }}>
-            <View style={[styles.autoBtn, { backgroundColor: c.amber }]}>
-              <Icon name="tunnel" size={17} color={c.onAmber} />
-              <Text style={{ fontFamily: font.uiSemi, fontSize: 14, color: c.onAmber, letterSpacing: -0.2 }}>Otopilot</Text>
-            </View>
-            <Text style={[type.small, { color: c.invDim, flex: 1 }]}>Beynini kapat. Sadece bunu yap.</Text>
-          </View>
-        </Surface>
+    <Animated.View entering={fadeIn} style={{ paddingHorizontal: 20 }}>
+      <Tap onPress={() => (haptic.lens(), nav().push({ name: 'autopilot', scope: null }))} style={[styles.pill, { backgroundColor: c.surface }]} accessibilityLabel={`Sıradaki: ${n.title}`}>
+        <Text style={{ fontSize: 11, color: c.amberInk }}>▶</Text>
+        <Text style={[type.small, { color: c.textDim, fontFamily: font.uiMedium }]}>Sıradaki:</Text>
+        <Text numberOfLines={1} style={[type.small, { color: c.text, fontFamily: font.uiMedium, flex: 1 }]}>
+          {n.title || 'Adsız görev'}
+        </Text>
+        <Icon name="chevron" size={15} color={c.textFaint} />
       </Tap>
     </Animated.View>
   );
 }
 
-/** A pinned node surfaced from any depth — edits here are edits there. */
-const Portal = memo(function Portal({ id }: { id: NodeId }) {
+const PinTile = memo(function PinTile({ id }: { id: NodeId }) {
   const c = usePalette();
-  const e = useEngine();
   const n = useNode(id);
   const p = useProgress(id);
-  const kids = useChildren(id);
   if (!n) return null;
-  const path = e.path(id).slice(0, -1).map((x) => x.title);
-  const open = kids.filter((k) => e.get(k)?.isTask).slice(0, 3);
   return (
-    <Tap scaleTo={0.975} onPress={() => (haptic.soft(), nav().push({ name: 'node', id }))}>
-      <Surface style={{ width: 232, minHeight: 156, padding: 16 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-          <View style={{ flex: 1 }}>
-            {path.length ? (
-              <Text numberOfLines={1} style={[type.micro, { color: c.textFaint, letterSpacing: 0.3 }]}>
-                {path.join(' › ')}
-              </Text>
-            ) : (
-              <Text style={[type.micro, { color: c.textFaint }]}>EVREN</Text>
-            )}
-            <Text numberOfLines={2} style={[type.headline, { color: c.text, marginTop: 6 }]}>
-              {n.title}
-            </Text>
-          </View>
-          {p.total > 0 ? <ProgressRing done={p.done} total={p.total} size={34} /> : <Icon name="pin" size={16} color={c.textFaint} />}
-        </View>
-        <View style={{ marginTop: 12, gap: 9 }}>
-          {open.length ? (
-            open.map((k) => <PortalTask key={k} id={k} />)
-          ) : (
-            <Text numberOfLines={3} style={[type.small, { color: c.textDim }]}>
-              {plainPreview(n.body, 160)}
-            </Text>
-          )}
-        </View>
-      </Surface>
+    <Tap onPress={() => (haptic.soft(), nav().push({ name: 'node', id }))} style={[styles.tile, { backgroundColor: c.surface }]}>
+      <Text numberOfLines={2} style={[type.small, { color: c.text, fontFamily: font.uiMedium, fontSize: 14, lineHeight: 19, flex: 1 }]}>
+        {n.title || 'Yeni not'}
+      </Text>
+      {p.done > 0 ? <ProgressRing done={p.done} total={p.total} size={14} /> : null}
     </Tap>
   );
 });
 
-const PortalTask = memo(function PortalTask({ id }: { id: NodeId }) {
+function Fab() {
   const c = usePalette();
   const e = useEngine();
-  const n = useNode(id);
-  if (!n) return null;
+  const insets = useSafeAreaInsets();
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
-      <Check size={18} done={n.done} onPress={() => toggleWithChoreography(e, id)} />
-      <Text numberOfLines={1} style={[type.small, { flex: 1, color: n.done ? c.textFaint : c.text, textDecorationLine: n.done ? 'line-through' : 'none' }]}>
-        {n.title}
-      </Text>
-    </View>
+    <Tap
+      onPress={() => {
+        haptic.soft();
+        const id = e.create(null, { title: '' });
+        nav().push({ name: 'node', id });
+      }}
+      accessibilityLabel="Yeni not"
+      style={[styles.fab, { bottom: insets.bottom + 16, backgroundColor: c.accent, shadowColor: c.shadow }]}
+    >
+      <Icon name="plus" size={24} color={c.card} weight={2} />
+    </Tap>
   );
-});
+}
 
 const styles = StyleSheet.create({
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: space.xl },
-  round: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth },
-  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xl, marginBottom: 6 },
-  inboxChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, height: 30, borderRadius: radius.pill },
-  autoBtn: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, height: 36, borderRadius: radius.pill },
-  newRoot: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, borderRadius: radius.m, borderWidth: 1, borderStyle: 'dashed', paddingHorizontal: 14 },
-  pullHint: { position: 'absolute', alignSelf: 'center', zIndex: 5, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  section: { paddingHorizontal: 20, marginBottom: 8 },
+  barIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 40, borderRadius: 12, paddingHorizontal: 14 },
+  tile: { width: 160, height: 68, borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+  },
 });

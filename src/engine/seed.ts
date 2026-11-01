@@ -19,36 +19,45 @@ type Spec = {
  */
 const VAULT: Spec[] = [
   {
-    t: 'Gelen Kutusu',
-    role: 'inbox',
-    b: 'Hızlı Döküm buraya düşer. Karar verme — sadece yakala. Sonra uzun basıp istediğin yere ışınla.',
+    t: 'Hoş geldin',
+    b: 'Sofia’da her şey bir not. Bir satırın solundaki daireye dokununca görev olur; içine girdiğin her not kendi sayfasıdır. Aşağıdakileri dene — hepsi gerçek görev.',
     c: [
-      { t: 'Kütüphane kartını yenile', task: true },
-      { t: 'Annemi ara — pazar planı', task: true },
-      { t: 'Fikir: ders notlarını sesli özetle #fikir' },
+      { t: 'Sağ alttaki ＋ ile yeni bir not aç', task: true },
+      { t: 'Bir satırı sola kaydır: sil', task: true },
+      { t: 'Bir satırı sağa kaydır: üstündekinin altına al', task: true },
+      { t: 'Bir notta Dış Göz’e dokun', task: true },
+      { t: 'Ana sayfada “Sıradaki”ye dokun', task: true },
     ],
   },
   {
+    t: 'Staj mı, yaz okulu mu?',
+    pin: true,
+    b:
+      'Kafamda dönüp duruyor. Staj teklifi geldi ama yaz okuluna gitmezsem bir dönem kaybedeceğim gibi hissediyorum. ' +
+      'Herkes stajın daha değerli olduğunu söylüyor ama yorgunum; yazın dinlenmezsem güz dönemini kaldıramam diye korkuyorum. ' +
+      'Cuma gününe kadar cevap vermem lazım ve hiçbir şey yapmadan bekliyorum. &karar&',
+  },
+  {
     t: 'Dersler',
-    b: 'Dönem sonuna 6 hafta. Her ders kendi evreni; içine gir, böl, tikle. Bağlantılar: [[Çalışma Ritmi]] · #sınav',
+    b: 'Dönem sonuna 6 hafta var. Her ders kendi sayfası.',
     c: [
       {
         t: 'Matematik',
         task: true,
-        b: 'Final: türev + integral ağırlıklı. [[Fizik]] hareket konusu da türev istiyor. #sınav',
+        b: 'Final: türev ve integral ağırlıklı. &Fizik& de türev istiyor. &sınav&',
         c: [
           {
             t: 'Türev fasikülü',
             task: true,
-            b: 'Zincir kuralında takılıyorum. Zor soruları ayrı listeye aldım ve vitrine çıkardım.',
+            b: 'Zincir kuralında takılıyorum; zor soruları ayrı bir listeye aldım.',
             c: [
               { t: 'Temel kurallar (s. 1–24)', task: true, done: true },
               { t: 'Zincir kuralı (s. 25–40)', task: true, done: true },
               {
-                t: 'Zor Sorular Listesi',
+                t: 'Zor sorular',
                 task: true,
                 pin: true,
-                b: 'Dört katman derinde yaşıyor ama Ana Sayfa’da duruyor. Burada tiklediğin her şey asıl yerinde de tiklenir.',
+                b: 'Ana sayfaya sabitledim; orada tiklediğim her şey burada da tiklenir.',
                 c: [
                   { t: 'Soru 14 — zincir içinde zincir', task: true, done: true },
                   { t: 'Soru 22 — kapalı türev', task: true },
@@ -60,13 +69,13 @@ const VAULT: Spec[] = [
           { t: '100 soru çöz', task: true, done: true },
           { t: 'İntegral giriş videosu', task: true, done: true },
           { t: 'Limit tekrar kartları', task: true },
-          { t: 'Deneme sınavı #1', task: true },
+          { t: 'Deneme sınavı', task: true },
         ],
       },
       {
         t: 'Fizik',
         task: true,
-        b: 'Hareket ve kuvvet. Türev bilgisi şart → [[Matematik]]. Formülleri [[Formül Kartları]]na topluyorum.',
+        b: 'Hareket ve kuvvet. Türev bilgisi şart: &Matematik&. Formüller &Formül kartları& içinde.',
         c: [
           { t: 'Newton yasaları özeti', task: true, done: true },
           { t: 'Eğik atış — 20 soru', task: true },
@@ -76,58 +85,29 @@ const VAULT: Spec[] = [
       {
         t: 'Türkçe',
         task: true,
-        b: 'Paragraf hızı düşük. Her gün 20 paragraf, süre tutarak. #sınav',
+        b: 'Paragraf hızım düşük. Her gün 20 paragraf, süre tutarak. &sınav&',
         c: [
-          { t: 'Paragraf — 20 soru (süreli)', task: true },
+          { t: 'Paragraf — 20 soru, süreli', task: true },
           { t: 'Anlatım bozuklukları tekrarı', task: true },
         ],
       },
-      { t: 'Formül Kartları', b: 'v = dx/dt\na = dv/dt\nF = m·a\n\nKart başına tek formül. Arka yüzüne bir örnek. Bağlı: [[Fizik]], [[Matematik]]' },
+      { t: 'Formül kartları', b: 'v = dx/dt\na = dv/dt\nF = m·a\n\nKart başına tek formül, arkasına bir örnek. &Fizik& &Matematik&' },
     ],
   },
   {
-    t: 'Staj mı, yaz okulu mu?',
-    pin: true,
-    b:
-      'Kafamda dönüp duruyor. Staj teklifi geldi, ama yaz okuluna gitmezsem bir dönem kaybedeceğim gibi hissediyorum. ' +
-      'Herkes stajın daha değerli olduğunu söylüyor ama ben yorgunum ve yazın dinlenmezsem güz dönemini kaldıramam diye korkuyorum. ' +
-      'Bir yandan da teklifi reddedersem bir daha böyle bir şans gelmez diye düşünüyorum. Cuma gününe kadar cevap vermem lazım ve hiçbir şey yapmadan bekliyorum. #karar',
-  },
-  {
-    t: 'Proje: Kişisel Web Sitesi',
-    seal: true,
-    b: 'Planı mühürledim. Sıralamayı değiştirmek yok — sadece yürütmek. Bitince mühür kendiliğinden çözülür. [[Çalışma Ritmi]]',
+    t: 'Kişisel web sitesi',
+    b: 'Mükemmel olmasın, yayında olsun. &odak&',
     c: [
       { t: 'Alan adını al', task: true, done: true },
       { t: 'Tek sayfa taslak — sadece metin', task: true },
       { t: 'Üç proje kartı yaz', task: true },
-      { t: 'Yayınla, mükemmel olmasın', task: true },
+      { t: 'Yayınla', task: true },
     ],
   },
   {
-    t: 'Çalışma Ritmi',
-    b:
-      'Kural: aynı anda tek görev. Otopilot sadece sıradakini gösterir; gerisi karanlıkta bekler.\n\n' +
-      'Takılırsan "İkiye Böl". Büyük görünen her şey iki küçük adımın kılık değiştirmiş hâlidir. #odak\n\n' +
-      'İlgili: [[Dersler]] · [[Proje: Kişisel Web Sitesi]]',
-    c: [
-      { t: 'Sabah: telefonsuz ilk 30 dakika', b: '#odak' },
-      { t: 'Öğle: yürüyüş, sonra tek görev', b: '#odak' },
-    ],
-  },
-  {
-    t: 'Sofia’ya Hoş Geldin',
-    collapsed: false,
-    b:
-      'Burada her şey tek bir şey: düğüm. Not olabilir, göreve dönüşebilir, içine girdiğinde koca bir sayfa olur. ' +
-      'Aşağıdakileri dene — hepsi gerçek görev, tikledikçe bu kart kendini tamamlar.',
-    c: [
-      { t: 'Bir satırı sağa kaydır → içeri al', task: true },
-      { t: 'Ana sayfayı aşağı çek → komut paleti', task: true },
-      { t: 'Bir notta mercek tuşu → Dış Göz', task: true },
-      { t: 'Otopilot’u başlat → tek görev', task: true },
-      { t: 'Grafı aç → beynini gör', task: true },
-    ],
+    t: 'Çalışma ritmi',
+    b: 'Aynı anda tek iş. Takılırsam ikiye bölerim: büyük görünen her şey iki küçük adımın kılık değiştirmiş hâli. &odak&',
+    c: [{ t: 'Sabah: telefonsuz ilk 30 dakika' }, { t: 'Öğle: yürüyüş, sonra tek iş' }],
   },
 ];
 

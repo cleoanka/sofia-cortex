@@ -1,167 +1,127 @@
 <p align="center">
-  <img src="assets/icon.png" width="112" alt="Sofia Cortex" />
+  <img src="assets/icon.png" width="104" alt="Sofia Cortex" />
 </p>
 
 <h1 align="center">Sofia Cortex</h1>
 
 <p align="center">
-  <b>Fraktal bir düşünce, not ve görev motoru.</b><br/>
-  Kaotik düşünceyi yakalar, sonsuz derinlikte yapılandırır, aralarındaki ağı gösterir —<br/>
-  ve iş yapma zamanı geldiğinde <i>beynini kapatıp</i> otopilotta ilerlemeni sağlar.
+  Sakin bir not ve görev uygulaması.<br/>
+  Yaz, içine gir, böl, tikle — ve iş yapma zamanı geldiğinde tek bir şeye odaklan.
 </p>
 
 <p align="center">
   <img src="assets/screenshots/01-home-light.png" width="24%" />
-  <img src="assets/screenshots/03-cascade.png" width="24%" />
+  <img src="assets/screenshots/03-note.png" width="24%" />
   <img src="assets/screenshots/05-observer.png" width="24%" />
-  <img src="assets/screenshots/07-autopilot.png" width="24%" />
+  <img src="assets/screenshots/06-autopilot.png" width="24%" />
 </p>
 
 ---
 
-## Felsefe
+## Fikir
 
-İnsan başkasına akıl vermekte ustadır, kendi sorununu çözmekte acemi (Solomon paradoksu).
-ADHD ve OKB zihinleri için en yıkıcı şey, tek bir işi yaparken diğer elli işi ve tüm ağacı
-görmek; mükemmeliyetçi zihin için ise listeyi düzenlemekten işi yapmaya geçememek.
+Her şey bir not. Bir not görev olabilir; içine girdiğinde kendi sayfası olur, içine yeni notlar ve
+görevler eklersin — derinlik sınırsız. Alt görevlerin hepsi bitince üstteki görev kendiliğinden
+tiklenir; biri geri açılırsa o da açılır.
 
-Sofia bu üç kırılmayı **yapay zekâ olmadan** — deterministik algoritmalar, tipografik ve
-mekânsal yabancılaştırma, kusursuz bilgi mimarisi ve dokunsal geri bildirimle — çözer.
+İki küçük alışkanlık işi kolaylaştırır:
 
-| | |
-|---|---|
-| **Tek atom** | Klasör, not, görev, alt görev yok. Her şey bir `CortexNode`. Not olur, tek dokunuşla göreve döner, içine girince koca bir sayfaya dönüşür. Derinlik sınırsız. |
-| **Aşağıdan yukarı yayılım** | “Matematik”in 5 alt görevinin sonuncusunu tiklediğin an halka kapanır, 120 ms sonra ebeveyn kendini tikler ve dalga en üste kadar yürür. Biri geri açılırsa ebeveyn zarifçe `4/5`'e döner. |
-| **Dış Göz** | Kendi notun, bir dergide yayımlanmış bir vaka dosyası gibi yeniden dizilir: serif tipografi, kâğıt dokusu, *birinci şahıs → üçüncü şahıs* aktarımı, “Özne”, gözlemlenen döngü örüntüleri. Altına yalnızca bir stratejistin yazacağı şeyi yazarsın: reçete. Her satır gerçek bir alt göreve dönüşür. |
-| **Otopilot** | Her şey karanlığa gömülür. Ekranda yalnızca sıradaki **tek** atomik görev ve yavaş nefes alan bir ışık. Bitince basılı tut — kart erir, sıradaki kendiliğinden gelir. Büyük mü geldi? *İkiye böl.* |
-| **Planı mühürle** | Plan hazırsa mühürle: yeniden sıralama ve yapı kilitlenir, yalnızca yürütme açık kalır. Son görev bitince mühür kendiliğinden çözülür. |
-| **Gelecekteki kendine komut** | Bildirim yerine *Otopilot kancası*: bildirime dokunduğun an uygulama ana sayfayı bile göstermeden doğrudan o görevin tek-görev ekranında açılır. |
+- **Dış Göz** — notunu, bir kitap sayfası gibi dizilmiş hâlde, başkasının yazısını okur gibi
+  okursun. Altında tek bir soru: *“Şu an atılabilecek en küçük, somut adım ne?”* Yazdığın her adım
+  o notun altına görev olarak eklenir.
+- **Otopilot** — ekranda yalnızca sıradaki tek görev kalır. *Tamamlandı*'ya basarsın, sıradaki
+  kendiliğinden gelir. Büyük geldiyse *İkiye böl*.
+
+Yapay zekâ yok, hesap yok, sunucu yok. Her şey telefonda, SQLite'ta.
 
 ## Ekranlar
 
 <table>
 <tr>
-<td width="33%"><img src="assets/screenshots/01-home-light.png"/><br/><sub><b>Ana Vitrin · Kağıt.</b> Sıradaki tek şey, 4 katman derinden vitrine çıkarılmış portal (üzerindeki tik asıl yerinde de tiklenir), fraktal ağaç, Hızlı Döküm.</sub></td>
-<td width="33%"><img src="assets/screenshots/02-home-dark.png"/><br/><sub><b>Ana Vitrin · Karbon.</b> OLED dostu derin obsidyen, yükseltilmiş yüzeylerde 1px speküler kenar.</sub></td>
-<td width="33%"><img src="assets/screenshots/03-cascade.png"/><br/><sub><b>Aşağıdan yukarı yayılım.</b> Soru 22 + 31 tiklendi → Zor Sorular ✓ → Türev fasikülü ✓ → Matematik 3/5. Tek adımda geri alınabilir.</sub></td>
+<td width="33%"><img src="assets/screenshots/01-home-light.png"/><br/><sub><b>Ana sayfa.</b> Tek satırlık “Sıradaki”, sabitlenenler, notlar. Yeni not için sağ alttaki ＋.</sub></td>
+<td width="33%"><img src="assets/screenshots/02-home-dark.png"/><br/><sub><b>Koyu tema.</b> Sağ üstteki ay/güneş ile değişir; basılı tutunca Ayarlar.</sub></td>
+<td width="33%"><img src="assets/screenshots/03-note.png"/><br/><sub><b>Not.</b> Başlık, metin ve satırlar yerinde düzenlenir. Alt görevler bitince üst görev kendiliğinden tiklenir.</sub></td>
 </tr>
 <tr>
-<td><img src="assets/screenshots/04-graph.png"/><br/><sub><b>Cortex Web.</b> Tek Skia katmanı, Barnes-Hut fiziği; dengeye ulaşınca <i>uykuya geçer (0 % CPU)</i>. Tamamlanan / aktif / engelli ayrımı, Küresel ↔ Odak merceği.</sub></td>
-<td><img src="assets/screenshots/05-observer.png"/><br/><sub><b>Dış Göz.</b> Vaka №, gözlem kaydı, üçüncü şahıs aktarımı: “Özne yorgun ve yazın dinlenmezse güz dönemini kaldıramaz diye korkuyor.”</sub></td>
-<td><img src="assets/screenshots/06-patterns.png"/><br/><sub><b>Gözlemlenen örüntüler + Reçete.</b> Salınım, felaketleştirme, toplumsal kanıt, zaman baskısı, zorunluluk dili, ya-hep-ya-hiç… Her reçete satırı bir alt görev.</sub></td>
+<td><img src="assets/screenshots/04-keyboard.png"/><br/><sub><b>Yazarken.</b> Klavyenin üstünde: Görev · Altına al · Üste çıkar · Bağla · Bitti. Return yeni satır açar.</sub></td>
+<td><img src="assets/screenshots/05-observer.png"/><br/><sub><b>Dış Göz.</b> Kendi notun, dokunulmadan, sakin bir sayfada. Altında tek soru ve eylem adımları.</sub></td>
+<td><img src="assets/screenshots/06-autopilot.png"/><br/><sub><b>Otopilot.</b> Tek görev. Tamamlandı · İkiye böl · Atla.</sub></td>
 </tr>
 <tr>
-<td><img src="assets/screenshots/07-autopilot.png"/><br/><sub><b>Otopilot.</b> Tek görev, nefes alan ışık, basılı-tut-tamamla, İkiye böl.</sub></td>
-<td><img src="assets/screenshots/08-node-dark.png"/><br/><sub><b>Fraktal düğüm.</b> Görünür araç satırı (gizli menü yok), zengin gövde, <code>[[sinaps]]</code>, ilerleme halkası.</sub></td>
-<td><img src="assets/screenshots/09-palette.png"/><br/><sub><b>Komut Paleti.</b> Aşağı çek. FTS5 ile milisaniyenin altında arama; <code>&gt; Matematik: Deneme çöz</code> gibi komutlar.</sub></td>
+<td><img src="assets/screenshots/07-graph.png"/><br/><sub><b>Graf.</b> Notlar ve aralarındaki bağlantılar. Dengeye oturunca fizik durur.</sub></td>
+<td><img src="assets/screenshots/08-menu-dark.png"/><br/><sub><b>••• menüsü.</b> Sabitle, taşı, hatırlatıcı, görev/not, planı kilitle.</sub></td>
+<td><img src="assets/screenshots/09-search-dark.png"/><br/><sub><b>Arama.</b> Aksan-duyarsız: “tur” yazınca “Türev” de bulunur.</sub></td>
 </tr>
 </table>
 
-## Özellikler
+## Kullanım
 
-- **Evrensel fraktal düğüm** — sonsuz derinlik, akışkan kimlik (not ⇄ görev ⇄ sayfa), sağa kaydır = içeri al, sola = dışarı al, daha sola = hatırlat, uzun bas-sürükle = başka bir düğümün *içine* bırak (hedef nabız gibi atar), iki parmakla kıstır = tümünü katla/aç.
-- **Reaktif yayılım** — alttan üste otomatik tikleme ve geri açılma, mikro-animasyonlu ilerleme halkaları, `Success` + ağır çift darbe haptic.
-- **Vitrin (Pin to Home)** — hiyerarşiden koparmadan derin düğümü Ana Sayfa'ya portal olarak çıkar.
-- **Çift yönlü sinapslar** — `[[Not]]`, `[[Not|takma ad]]`, `@Görev`, `#etiket`; `[[` yazınca otomatik tamamlama; bağlamlı *Gelen bağlantılar* çekmecesi; yeniden adlandırınca tüm referanslar güncellenir.
-- **Cortex Web** — GPU'da tek katman graf, Barnes-Hut (10 000 düğüm / 12 000 kenarda ≈ 6 ms/adım), uyku modu, sürükle-uyandır, Küresel / Odak (1.–2. derece) merceği, filtreler.
-- **Dış Göz** — tipografik + mekânsal yabancılaştırma, deterministik Türkçe 1.→3. şahıs aktarımı, sis endeksi, döngü örüntüleri, **15 dakika demlemeye bırak** (kilitlenir, bildirimle vaka dosyası olarak geri gelir), Eylem Protokolü → alt görevler.
-- **Otopilot** — tünel modu, tek atomik görev, nefes ritmi, basılı tut, *İkiye böl*, *Şimdi değil*, odak sayacı.
-- **Planı mühürle** — OKB döngü kırıcı.
-- **Chrono-trigger'lar** — not/görev başına bildirim; *Otopilot kancası* soğuk açılışta bile doğrudan tek-görev ekranını açar.
-- **Cortex Dump** — alttan yukarı çekilen Hızlı Döküm; her şey Gelen Kutusu'na, sonra *Işınla*.
-- **Komut Paleti** — aşağı çek; FTS5 (aksan-duyarsız, önek), `>` komutları, ışınlama modu.
-- **Zaman yolculuğu** — her işlem tek adım undo/redo; cam kapsül *Geri al*; telefonu salla = geri al; 30 gün saklayan çöp kutusu.
-- **Veri egemenliği** — tek dokunuşla **Markdown kasası (.zip, Obsidian'da açılır)** veya JSON; içe aktar (birleştir / değiştir). Sunucu yok, hesap yok.
-- **Yaşayan başlangıç** — ilk açılışta boş ekran yok: Dersler (Matematik/Fizik/Türkçe), mühürlü bir plan, Dış Göz için bir karar notu, etkileşimli hoş geldin görevleri.
+| | |
+|---|---|
+| Yeni not | Sağ alttaki ＋. Başlık yazılmaya hazır gelir; Return gövdeye geçer. Boş bırakılan not kendiliğinden silinir. |
+| Görev yapmak | Satırın solundaki soluk daireye dokun ya da klavye çubuğundaki ☐. |
+| Yeni satır | Satırdayken Return. Boş bir görevde Return veya ⌫ onu düz metne çevirir. Sayfanın boş kısmına dokunmak da yeni satır açar. |
+| Alt görev | Satırı sağa kaydır ya da ↳ Altına al. |
+| Silmek | Satırı sola kaydır ya da üst bardaki çöp kutusu. Hemen çıkan *Geri al* ile tek dokunuşta geri gelir. |
+| Bağlantı | Klavye çubuğunda *Bağla* ya da `&` yaz: `&Fizik&`. Böyle bir not varsa bağlantıdır, yoksa etiket olur. |
+| Sabitlemek, taşımak, hatırlatıcı | Notun üst barındaki •••. Hatırlatıcı istenirse bildirime dokununca doğrudan Otopilot'ta açılır. |
+| Planı kilitlemek | ••• → Planı kilitle. Görevler bitene kadar sıralama ve yapı değişmez, sadece tiklenir. |
 
 ## Mimari
 
 ```
 Expo SDK 58 · React Native 0.88 (New Architecture) · TypeScript strict
-expo-sqlite (WAL + FTS5 + recursive CTE) · @shopify/react-native-skia 2
-Reanimated 4 + react-native-worklets · Gesture Handler 3 (hook API)
-expo-haptics · expo-notifications · zustand
+expo-sqlite (WAL + FTS5) · @shopify/react-native-skia (graf)
+Reanimated 4 · Gesture Handler 3 · react-native-keyboard-controller
 ```
 
-Motor (`src/engine`) saf TypeScript'tir — React ya da Expo import etmez, depolamaya dört metotluk
-bir `SqlDriver` üzerinden erişir; cihazda expo-sqlite, testlerde `bun:sqlite`. SQLite gerçeğin
-kaynağıdır; artımlı indeksli bir bellek aynası her UI okumasını senkron yanıtlar, böylece **hiçbir
-kare I/O beklemez**. Her yazma `transact()` içinde koşar: önce/sonra anlık görüntüsü alınır, tek
-SQLite işleminde kalıcılaştırılır, undo/redo = anlık görüntüyü yeniden uygulamak.
+Motor (`src/engine`) saf TypeScript'tir; React ya da Expo içermez, depolamaya dört metotluk bir
+arayüzle erişir — telefonda expo-sqlite, testlerde `bun:sqlite`. SQLite asıl kaynaktır; ekranlar her
+şeyi bellekteki bir kopyadan senkron okur, bu yüzden hiçbir kare diski beklemez. Her değişiklik tek
+bir işlem olarak kaydedilir; geri al / yinele bu sayede tek adımdır.
 
-Ayrıntılar: [`ARCHITECTURE.md`](ARCHITECTURE.md) · çalışma kuralları: [`CLAUDE.md`](CLAUDE.md)
+Ayrıntılar: [`ARCHITECTURE.md`](ARCHITECTURE.md) · çalışma kuralları: [`CLAUDE.md`](CLAUDE.md) ·
+tasarım yönü: [`docs/design-direction.md`](docs/design-direction.md)
 
-### Ölçülen performans (10 000 düğüm)
-
-| işlem | süre |
-|---|---|
-| soğuk yükleme (SQLite → bellek + indeksler) | ~15 ms |
-| tikleme + tam yayılım dalgası + kalıcılaştırma | ~0.07 ms |
-| FTS5 önek araması | ~0.9 ms |
-| Otopilot kuyruğu | ~0.2 ms |
-| graf projeksiyonu | ~6 ms |
-| Barnes-Hut adımı (10k düğüm / 12k kenar) | ~6 ms |
-
-`bun test` → **78 test** (motor, 52 adversarial edge-case, gözlemci dilbilimi, fizik).
+**Ölçülen performans (10 000 not):** açılışta yükleme ~15 ms · tikleme ve yukarı yayılma ~0.07 ms ·
+arama ~0.9 ms · graf fizik adımı ~6 ms. `bun test` → 94 test.
 
 ## Kurulum
 
-Gereksinimler: macOS, Xcode (iOS 26 SDK), Node ≥ 20, CocoaPods, [bun](https://bun.sh) (testler için).
+Gereksinimler: macOS, Xcode, Node ≥ 20, CocoaPods, [bun](https://bun.sh) (testler için).
 
 ```bash
 git clone https://github.com/cleoanka/sofia-cortex.git
 cd sofia-cortex
 npm install
-bun test                     # motor + fizik + dilbilim testleri
+bun test
+npx expo run:ios                     # simülatör
 ```
 
-### iOS Simülatör
+### iPhone'a kurmak
 
-```bash
-npx expo run:ios             # dev build: derler, simülatöre kurar, Metro'yu başlatır
-```
-
-### Fiziksel iPhone (ör. iPhone 12)
-
-1. iPhone'u USB ile bağla (veya aynı ağda Wi-Fi eşleştirmesi), *Bu bilgisayara güven* de.
-   iPhone'da **Ayarlar → Gizlilik ve Güvenlik → Geliştirici Modu**'nu aç.
-2. `app.json` → `expo.ios.appleTeamId` alanına kendi Apple Developer Team ID'ni yaz
-   (ücretsiz Apple ID de olur) ve `bundleIdentifier`'ı benzersiz yap.
-3. Cihazı bul ve derle:
+1. iPhone'u USB ile bağla, *Bu bilgisayara güven* de; **Ayarlar → Gizlilik ve Güvenlik →
+   Geliştirici Modu**'nu aç.
+2. `app.json` → `expo.ios.appleTeamId` alanına kendi Team ID'ni yaz, `bundleIdentifier`'ı benzersiz
+   yap. Ücretsiz Apple hesabı da olur: uygulama yalnızca yerel bildirim kullanır ve
+   `plugins/withLocalNotificationsOnly.js` push yetkisini kaldırır.
+3. Derle ve kur:
    ```bash
-   xcrun devicectl list devices
-   npx expo run:ios --device <UDID> --configuration Release   # Mac'e bağlı olmadan çalışan sürüm
-   # ya da geliştirme için:
-   npx expo run:ios --device <UDID>
+   npx expo prebuild --platform ios
+   cd ios && xcodebuild -workspace SofiaCortex.xcworkspace -scheme SofiaCortex \
+     -configuration Release -destination "id=<UDID>" -allowProvisioningUpdates build
+   xcrun devicectl device install app --device <UDID> build/Build/Products/Release-iphoneos/SofiaCortex.app
    ```
-4. İlk kurulumda iPhone'da **Ayarlar → Genel → VPN ve Cihaz Yönetimi** altında geliştirici
-   sertifikana güven.
+4. İlk açılışta **Ayarlar → Genel → VPN ve Cihaz Yönetimi** altında geliştirici sertifikana güven.
 
-### Derin bağlantılar
+## Nasıl yapıldı
 
-`sofia://home` · `sofia://node/<başlık>` · `sofia://observer/<başlık>` · `sofia://autopilot` ·
-`sofia://graph` · `sofia://settings`
-
-```bash
-xcrun simctl openurl booted "sofia://observer/Staj%20m%C4%B1%2C%20yaz%20okulu%20mu%3F"
-```
-
-## Yapay zekâ yuvası
-
-Bugün hiçbir model çağrılmaz. `CortexAIProvider` arayüzü (`suggestSteps`, `reframe`) yerel ya da bulut
-bir modelin tek bir adaptörle, motora dokunmadan takılabilmesi için hazır bekler.
+Claude Opus 5.5 uygulamayı yazdı ve her ekranı simülatörde ekran görüntüsüyle kontrol etti. `agy`
+üzerinden **Gemini 4 Argon** fizik motorunu, bir mimari/performans incelemesini
+([`docs/design-review-2026-11-01.md`](docs/design-review-2026-11-01.md)) ve sade tasarım yönünü
+([`docs/design-direction.md`](docs/design-direction.md)) üretti; **Gemini 3.8 Flash** sınır durumu
+testlerini yazdı.
 
 ## Lisans
 
 MIT
-
-## Nasıl inşa edildi
-
-Çok-modelli bir orkestrasyonla: Claude Opus 5.5 baş mimar olarak motoru, UI'ı ve görsel doğrulama
-döngüsünü yazdı; `agy` üzerinden **Gemini 4 Argon** Barnes-Hut fizik motorunu ve ardından 34 bulguluk
-adversarial mimari/performans/UX incelemesini ([`docs/design-review-2026-11-01.md`](docs/design-review-2026-11-01.md)),
-**Gemini 3.8 Flash** 52 edge-case testini üretti. Her bulgu doğrulandı, uygulandı ve simülatörde ekran
-görüntüsüyle yeniden kontrol edildi.
-
-> Ücretsiz (kişisel) Apple takımıyla imzalama: Sofia yalnızca *yerel* bildirim kullanır;
-> `plugins/withLocalNotificationsOnly.js` push yetkisini kaldırır, böylece ücretsiz hesapla da cihaza kurulur.

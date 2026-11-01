@@ -14,7 +14,7 @@ expo-haptics · expo-notifications · zustand.
 
 ## Commands
 ```bash
-bun test                    # engine, observer, physics, edge cases (78 tests)
+bun test                    # engine, links, physics, edge cases (94 tests)
 npx tsc --noEmit            # strict, noUnusedLocals
 npx expo run:ios            # simulator dev build
 npx expo run:ios --device   # physical iPhone (USB/Wi-Fi)
@@ -27,15 +27,16 @@ npx expo run:ios --device   # physical iPhone (USB/Wi-Fi)
    Labels are Turkish, user-facing (they show in the undo capsule).
 3. **No I/O, no O(n) scans on the render path.** Components subscribe per id
    (`useNode/useChildren/useProgress`); `useVersion` only for derived views.
-4. **Design tokens only.** Every colour, font, spacing, radius and spring comes from
-   `src/theme/tokens.ts`. Never raw `#FFFFFF`/`#000000`.
-5. **No linear easing.** Springs from `spring.*`. Timing only for breath / hold-to-complete.
-6. **No hidden menus.** No ⋯, no overflow, no dropdowns. Options are visible, selection is a tick,
-   secondary UI is an inline drawer.
+4. **Design tokens only.** Every colour, font, spacing and radius comes from
+   `src/theme/tokens.ts`; motion from `src/theme/motion.ts`. Never raw `#FFFFFF`/`#000000`.
+5. **Calm motion.** `withTiming` 150–220 ms `Easing.out(cubic)` only. No springs, no scale, no bounce.
+6. **Less is more.** No uppercase meta labels, no boxes in boxes, no invented words (Işınla,
+   Mühür, Vitrin…). The note top bar is: ‹ Geri · Otopilot · Dış Göz · Sil · ••• (pin, move,
+   reminder, task/note, lock plan). Links are `&Başlık&` only.
 7. **Haptic vocabulary** (`platform/haptics.ts`): tick = subtask, cascade = auto-complete,
    lens = Observer/Autopilot switch, select = structure change, thud = commit/drop, warn = blocked.
-8. **Seal is law.** Structural writes inside an unfinished sealed plan throw `SealedError`; UI
-   wraps them in `guard()`.
+8. **Locked plan is law.** Structural writes inside an unfinished sealed plan throw `SealedError`;
+   UI wraps them in `guard()` (`src/ui/actions.ts`). Delete is a hard delete with one-step undo.
 9. **Turkish text** — `toLocaleLowerCase('tr-TR')`; in regexes never trust `\b` (ASCII-only).
 
 ## Design tokens (summary)
@@ -43,4 +44,4 @@ Light "Kağıt": bg `#FBF9F5`, surface `#F3EFEA`, card `#FFFFFF` + `#E6E1DA` hai
 accent indigo `#4F46E5`, amber `#D97706`.
 Dark "Karbon": bg `#090A0C`, surface `#111318`, card `#181B22`, specular top edge `rgba(255,255,255,0.07)`,
 text `#F4F4F6`/`#8E929F`, accent `#8B85FF`, amber `#F2A33A`.
-Observer: `obs*` tokens (paper/ink/rule/stamp) + Newsreader serif. UI font: Inter.
+Reading view (Dış Göz): `obs*` tokens + Newsreader serif. UI font: Inter.

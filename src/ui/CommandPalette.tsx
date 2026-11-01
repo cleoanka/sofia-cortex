@@ -1,7 +1,8 @@
 import { BlurView } from 'expo-blur';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, SlideInUp, SlideOutUp } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { ease } from '../theme/motion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CortexEngine } from '../engine/CortexEngine';
 import { titleKey } from '../engine/links';
@@ -12,7 +13,7 @@ import { nav, useNav } from '../state/nav';
 import { usePalette, useTheme } from '../theme/ThemeProvider';
 import { font, radius, type } from '../theme/tokens';
 import { Icon, type IconName } from './Icon';
-import { guard } from './Outline';
+import { guard } from './actions';
 import { Tap } from './primitives';
 import { paletteQuery } from './richText';
 
@@ -63,7 +64,6 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
   const input = useRef<React.ComponentRef<typeof TextInput>>(null);
-  const searchMs = useRef(0);
   const close = () => {
     Keyboard.dismiss();
     nav().openPalette(null);
@@ -84,19 +84,19 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
     };
     if (mode === 'move' && moveId) {
       const moving = e.get(moveId);
-      const teleport = (target: NodeId | null) => () => {
+      const moveTo = (target: NodeId | null) => () => {
         if (target && (target === moveId || e.isDescendant(target, moveId))) return haptic.warn();
         if (guard(() => e.move(moveId, target))) {
           haptic.thud();
           close();
-          nav().showToast(`Işınlandı → ${target ? e.get(target)?.title : 'Ana Sayfa'}`);
+          nav().showToast(`Taşındı → ${target ? e.get(target)?.title : 'Ana sayfa'}`);
         }
       };
-      out.push({ key: 'root', icon: 'globe', title: 'Ana Sayfa (en üst katman)', sub: 'Kendi evreni olsun', run: teleport(null), tone: 'accent' });
-      const pool = q.trim() ? e.suggestTitles(q, 30) : e.allLive().filter((n) => e.hasChildren(n.id) || n.role === 'inbox').slice(0, 40);
+      out.push({ key: 'root', icon: 'globe', title: 'Ana sayfa', sub: 'En üstte, kendi başına', run: moveTo(null), tone: 'accent' });
+      const pool = q.trim() ? e.suggestTitles(q, 30) : e.allLive().filter((n) => e.hasChildren(n.id)).slice(0, 40);
       for (const n of pool) {
         if (n.id === moveId || e.isDescendant(n.id, moveId) || n.id === moving?.parentId) continue;
-        out.push({ key: n.id, icon: 'teleport', title: n.title || 'Adsız', sub: e.path(n.id).slice(0, -1).map((p) => p.title).join(' › ') || 'Cortex', run: teleport(n.id) });
+        out.push({ key: n.id, icon: 'move', title: n.title || 'Adsız', sub: e.path(n.id).slice(0, -1).map((p) => p.title).join(' › ') || 'Ana sayfa', run: moveTo(n.id) });
       }
       return out;
     }
@@ -126,18 +126,16 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
       const commands: Item[] = [
         { key: 'auto', icon: 'tunnel', title: 'Otopilot', sub: 'Sıradaki tek görev', run: () => (close(), haptic.lens(), nav().push({ name: 'autopilot', scope: null })) },
         { key: 'graph', icon: 'graph', title: 'Graf', sub: 'Beynini gör', run: () => (close(), nav().push({ name: 'graph' })) },
-        { key: 'new', icon: 'plus', title: `Yeni evren${cmd.startsWith('yeni ') ? `: ${text.slice(1).trim().slice(5)}` : ''}`, sub: '> yeni Başlık', run: () => {
+        { key: 'new', icon: 'plus', title: `Yeni not${cmd.startsWith('yeni ') ? `: ${text.slice(1).trim().slice(5)}` : ''}`, sub: '> yeni Başlık', run: () => {
           const title = cmd.startsWith('yeni ') ? text.slice(1).trim().slice(5) : '';
           const id = e.create(null, { title });
           close();
           nav().push({ name: 'node', id });
         } },
-        { key: 'inbox', icon: 'inbox', title: 'Gelen Kutusu', run: () => { const i = e.inbox(); if (i) go(i.id)(); } },
         { key: 'undo', icon: 'undo', title: `Geri al${e.undoLabel ? ` · ${e.undoLabel}` : ''}`, run: () => { const l = e.undo(); close(); if (l) nav().showToast(`Geri alındı · ${l}`, false); } },
-        { key: 'dark', icon: 'moon', title: 'Tema: Karbon (koyu)', run: () => (setPref('dark'), close()) },
-        { key: 'light', icon: 'sun', title: 'Tema: Kağıt (açık)', run: () => (setPref('light'), close()) },
-        { key: 'settings', icon: 'gear', title: 'Ayarlar · Dışa aktar', run: () => (close(), nav().push({ name: 'settings' })) },
-        { key: 'trash', icon: 'trash', title: 'Çöp kutusu', run: () => (close(), nav().push({ name: 'trash' })) },
+        { key: 'dark', icon: 'moon', title: 'Koyu tema', run: () => (setPref('dark'), close()) },
+        { key: 'light', icon: 'sun', title: 'Açık tema', run: () => (setPref('light'), close()) },
+        { key: 'settings', icon: 'gear', title: 'Ayarlar', run: () => (close(), nav().push({ name: 'settings' })) },
       ];
       const tokens = cmd.split(/\s+/).filter(Boolean);
       for (const k of commands) if (!add && (!tokens.length || tokens.every((t) => k.title.toLocaleLowerCase('tr-TR').includes(t) || k.key.includes(t)))) out.push(k);
@@ -146,35 +144,32 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
 
     if (!text) {
       const recent = [...e.allLive()].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8);
-      out.push({ key: 'hint', icon: 'tunnel', title: 'Otopilot', sub: '“>” ile komut: > Matematik: Deneme çöz', run: () => (close(), haptic.lens(), nav().push({ name: 'autopilot', scope: null })), tone: 'amber' });
-      for (const n of recent) out.push({ key: n.id, icon: n.isTask ? 'task' : 'note', title: n.title || 'Adsız', sub: e.path(n.id).slice(0, -1).map((p) => p.title).join(' › ') || 'Cortex', run: go(n.id) });
+      for (const n of recent) out.push({ key: n.id, icon: n.isTask ? 'task' : 'note', title: n.title || 'Adsız', sub: e.path(n.id).slice(0, -1).map((p) => p.title).join(' › ') || 'Ana sayfa', run: go(n.id) });
       return out;
     }
 
-    const t0 = performance.now();
     const hits = e.search(text, 30);
-    searchMs.current = performance.now() - t0;
     for (const h of hits) {
       const n = e.get(h.id);
       // Links read as prose in results; a title-only hit shows where it lives instead of repeating itself.
-      const snip = h.snippet.replace(/\[\[([^\]|]*)\|?([^\]]*)\]\]/g, (_m, t: string, al: string) => al || t).replace(/\[\[|\]\]/g, '');
+      const snip = h.snippet.replace(/&/g, '').replace(/\[\[([^\]|]*)\|?([^\]]*)\]\]/g, (_m, t: string, al: string) => al || t).replace(/\[\[|\]\]/g, '');
       const plain = snip.replace(/[\u0001\u0002]/g, '');
-      const path = e.path(h.id).slice(0, -1).map((p) => p.title).join(' › ') || 'Cortex';
+      const path = e.path(h.id).slice(0, -1).map((p) => p.title).join(' › ') || 'Ana sayfa';
       out.push({ key: h.id, icon: n?.isTask ? 'task' : 'note', title: h.title || 'Adsız', sub: plain.trim() === h.title.trim() ? path : snip, run: go(h.id) });
     }
-    if (text.startsWith('#')) {
-      for (const id of e.tagged(text)) if (!hits.some((h) => h.id === id)) out.push({ key: id, icon: 'note', title: e.get(id)?.title || 'Adsız', sub: text, run: go(id) });
-    }
+    // `&etiket&` — every note that carries it, even when no note has that name.
+    const tag = text.match(/^&([^&]+)&?$/);
+    if (tag) for (const id of e.tagged(tag[1])) if (!hits.some((h) => h.id === id)) out.unshift({ key: id, icon: 'note', title: e.get(id)?.title || 'Adsız', sub: `&${tag[1]}&`, run: go(id) });
     out.push({
-      key: 'capture',
-      icon: 'inbox',
-      title: `Gelen Kutusu’na yakala: “${text}”`,
+      key: 'create',
+      icon: 'plus',
+      title: `Yeni not: “${text.replace(/&/g, '')}”`,
       tone: 'accent',
       run: () => {
-        e.capture(text);
+        const id = e.create(null, { title: text.replace(/&/g, '').trim() });
         haptic.soft();
         close();
-        nav().showToast('Gelen Kutusu’na düştü');
+        nav().push({ name: 'node', id });
       },
     });
     return out;
@@ -183,20 +178,20 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
 
   return (
     <>
-      <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(160)} style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim }]}>
-        <Tap scaleTo={1} style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Paleti kapat" />
+      <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(150)} style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim }]}>
+        <Tap style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Paleti kapat" />
       </Animated.View>
-      <Animated.View entering={SlideInUp.springify().damping(22).stiffness(260)} exiting={SlideOutUp.springify().damping(24)} style={[styles.sheet, { paddingTop: insets.top + 8 }]}>
+      <Animated.View entering={FadeIn.duration(180).easing(ease)} exiting={FadeOut.duration(150).easing(ease)} style={[styles.sheet, { paddingTop: insets.top + 8 }]}>
         <BlurView intensity={50} tint={c.scheme === 'dark' ? 'dark' : 'light'} style={[styles.card, { borderColor: c.cardBorder }]}>
           <View style={[StyleSheet.absoluteFill, { backgroundColor: c.card, opacity: 0.86 }]} />
           <View style={styles.inputRow}>
-            <Icon name={mode === 'move' ? 'teleport' : q.startsWith('>') ? 'chevron' : 'search'} size={19} color={c.accent} />
+            <Icon name={mode === 'move' ? 'move' : q.startsWith('>') ? 'chevron' : 'search'} size={19} color={c.accent} />
             <TextInput
               ref={input}
               autoFocus
               value={q}
               onChangeText={setQ}
-              placeholder={mode === 'move' ? 'Nereye ışınlansın?' : 'Ara ya da > komut yaz'}
+              placeholder={mode === 'move' ? 'Hangi notun içine?' : 'Notlarda ara'}
               placeholderTextColor={c.textFaint}
               selectionColor={c.accent}
               returnKeyType="go"
@@ -204,7 +199,6 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
               onSubmitEditing={() => items[0]?.run()}
               style={[type.row, { flex: 1, color: c.text, fontSize: 17 }]}
             />
-            {q && !q.startsWith('>') && mode === 'search' ? <Text style={[type.mono, { color: c.textFaint }]}>{searchMs.current.toFixed(1)}ms</Text> : null}
             <Tap onPress={close} hitSlop={10} accessibilityLabel="Kapat">
               <Icon name="close" size={17} color={c.textDim} />
             </Tap>
@@ -216,7 +210,7 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
             keyboardShouldPersistTaps="handled"
             style={{ maxHeight: 440 }}
             renderItem={({ item, index }) => (
-              <Tap scaleTo={0.985} onPress={item.run} style={[styles.item, index === 0 && q ? { backgroundColor: c.accentSoft } : null]}>
+              <Tap onPress={item.run} style={[styles.item, index === 0 && q ? { backgroundColor: c.accentSoft } : null]}>
                 <View style={[styles.itemIcon, { backgroundColor: item.tone === 'amber' ? c.amberSoft : item.tone === 'accent' ? c.accentSoft : c.surface }]}>
                   <Icon name={item.icon} size={16} color={item.tone === 'amber' ? c.amber : item.tone === 'accent' ? c.accent : c.textDim} />
                 </View>

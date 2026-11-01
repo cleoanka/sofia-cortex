@@ -9,7 +9,7 @@ export type IconName =
   | 'back' | 'chevron' | 'plus' | 'lens' | 'tunnel' | 'graph' | 'search' | 'pin' | 'seal'
   | 'bell' | 'gear' | 'trash' | 'undo' | 'split' | 'check' | 'inbox' | 'close' | 'send'
   | 'sun' | 'moon' | 'auto' | 'teleport' | 'task' | 'note' | 'export' | 'import' | 'expand'
-  | 'collapse' | 'link' | 'steep' | 'restore' | 'globe' | 'focus' | 'up' | 'down';
+  | 'collapse' | 'link' | 'steep' | 'restore' | 'globe' | 'focus' | 'up' | 'down' | 'more' | 'indent' | 'outdent' | 'move' | 'lock';
 
 const P: Record<IconName, (c: string) => React.ReactNode> = {
   back: (c) => <Path d="M14.5 5.5 8 12l6.5 6.5" stroke={c} />,
@@ -102,6 +102,17 @@ const P: Record<IconName, (c: string) => React.ReactNode> = {
   expand: (c) => <Path d="M8 9.5 12 5.5l4 4M8 14.5l4 4 4-4" stroke={c} />,
   collapse: (c) => <Path d="M8 5.5l4 4 4-4M8 18.5l4-4 4 4" stroke={c} />,
   link: (c) => <Path d="M10.5 13.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-.8.8M13.5 10.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l.8-.8" stroke={c} />,
+  more: (c) => (
+    <>
+      <Circle cx="5.5" cy="12" r="1.5" fill={c} stroke="none" />
+      <Circle cx="12" cy="12" r="1.5" fill={c} stroke="none" />
+      <Circle cx="18.5" cy="12" r="1.5" fill={c} stroke="none" />
+    </>
+  ),
+  indent: (c) => <Path d="M6 5v6a3 3 0 0 0 3 3h9m0 0-3.5-3.5M18 14l-3.5 3.5" stroke={c} />,
+  outdent: (c) => <Path d="M18 19v-6a3 3 0 0 0-3-3H6m0 0 3.5-3.5M6 10l3.5 3.5" stroke={c} />,
+  move: (c) => <Path d="M4.5 8.5V18a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 18 8.5h-6l-2-2.5H6A1.5 1.5 0 0 0 4.5 7.5M10 14h6m0 0-2.5-2.5M16 14l-2.5 2.5" stroke={c} />,
+  lock: (c) => <Path d="M7 11V8.5a5 5 0 0 1 10 0V11M6 11h12v8.5H6z" stroke={c} />,
   steep: (c) => (
     <>
       <Path d="M6 9.5h10v5a5 5 0 0 1-10 0v-5ZM16 11h1.5a2 2 0 0 1 0 4H16" stroke={c} />

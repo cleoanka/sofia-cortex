@@ -1,66 +1,147 @@
+import { BlurView } from 'expo-blur';
 import React, { memo, useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View, type PressableProps, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
-import Animated, {
-  interpolate,
-  interpolateColor,
-  useAnimatedProps,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withSequence,
-  withSpring,
-} from 'react-native-reanimated';
+import { Pressable, StyleSheet, Text, View, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+import Animated, { interpolate, interpolateColor, useAnimatedProps, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { usePalette } from '../theme/ThemeProvider';
-import { font, radius, spring, type } from '../theme/tokens';
+import { t150, t200 } from '../theme/motion';
+import { font, type } from '../theme/tokens';
 import { takeCascadeDelay } from './choreo';
 import { Icon, type IconName } from './Icon';
 
-const APressable = Animated.createAnimatedComponent(Pressable);
 const ACircle = Animated.createAnimatedComponent(Circle);
 const APath = Animated.createAnimatedComponent(Path);
 
-/** Pressable with a physical spring press. */
-export function Tap({ style, children, scaleTo = 0.965, ...rest }: PressableProps & { style?: StyleProp<ViewStyle>; scaleTo?: number; children?: React.ReactNode }) {
-  const s = useSharedValue(1);
-  const a = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
+/** Turkish-correct capitals: RN's textTransform is locale-blind (i → I, not İ). */
+export const upper = (s: string) => s.toLocaleUpperCase('tr-TR');
+
+/** Pressable with quiet opacity feedback — nothing grows, nothing bounces. */
+export function Tap({ style, children, ...rest }: PressableProps & { style?: StyleProp<ViewStyle>; children?: React.ReactNode }) {
   return (
-    <APressable
-      {...rest}
-      onPressIn={(e) => {
-        s.value = withSpring(scaleTo, spring.snappy);
-        rest.onPressIn?.(e);
-      }}
-      onPressOut={(e) => {
-        s.value = withSpring(1, spring.bouncy);
-        rest.onPressOut?.(e);
-      }}
-      style={[style, a]}
-    >
+    <Pressable {...rest} style={({ pressed }) => [style, pressed && { opacity: 0.55 }]}>
       {children}
-    </APressable>
+    </Pressable>
   );
 }
 
-/** Raised card: hairline border, layered soft shadow, specular top edge in dark. */
-export function Surface({ style, children, elevated = true }: { style?: StyleProp<ViewStyle>; children?: React.ReactNode; elevated?: boolean }) {
+export function IconButton({ icon, onPress, label, color, size = 22, disabled }: { icon: IconName; onPress: () => void; label: string; color?: string; size?: number; disabled?: boolean }) {
+  const c = usePalette();
+  return (
+    <Tap onPress={disabled ? undefined : onPress} hitSlop={6} accessibilityRole="button" accessibilityLabel={label} style={[styles.iconBtn, disabled && { opacity: 0.35 }]}>
+      <Icon name={icon} size={size} color={color ?? c.text} />
+    </Tap>
+  );
+}
+
+export const BAR_HEIGHT = 52;
+
+/**
+ * Sticky top bar. Content scrolls underneath a blurred, nearly opaque surface,
+ * so text never collides with the clock or the battery.
+ */
+export function TopBar({ left, right, center, tint }: { left?: React.ReactNode; right?: React.ReactNode; center?: React.ReactNode; tint?: string }) {
+  const c = usePalette();
+  const insets = useSafeAreaInsets();
+  const bg = tint ?? c.bg;
+  return (
+    <View style={[styles.bar, { height: insets.top + BAR_HEIGHT, paddingTop: insets.top, borderBottomColor: c.hairline }]} pointerEvents="box-none">
+      <BlurView intensity={30} tint={c.scheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: bg, opacity: 0.9 }]} />
+      <View style={styles.barRow} pointerEvents="box-none">
+        <View style={styles.barCenter} pointerEvents="box-none">
+          {center}
+        </View>
+        <View style={styles.barSide}>{left}</View>
+        <View style={[styles.barSide, { justifyContent: 'flex-end' }]}>{right}</View>
+      </View>
+    </View>
+  );
+}
+
+export function useBarInset(): number {
+  return useSafeAreaInsets().top + BAR_HEIGHT;
+}
+
+export function BackButton({ onPress, label = 'Geri' }: { onPress: () => void; label?: string }) {
+  const c = usePalette();
+  return (
+    <Tap onPress={onPress} hitSlop={8} style={styles.back} accessibilityRole="button" accessibilityLabel={label}>
+      <Icon name="back" size={22} color={c.accent} weight={2} />
+      <Text style={[type.barTitle, { color: c.accent, fontFamily: font.ui }]}>{label}</Text>
+    </Tap>
+  );
+}
+
+/**
+ * The check. Ring → amber disc with a drawn mark, 150 ms. An auto-completed
+ * ancestor waits for its child's ring to close first (cascade choreography).
+ */
+export const Check = memo(function Check({ id, done, size = 22, onPress }: { id?: string; done: boolean; size?: number; onPress?: () => void }) {
+  const c = usePalette();
+  const p = useSharedValue(done ? 1 : 0);
+  useEffect(() => {
+    const wait = done ? takeCascadeDelay(id) : 0;
+    p.value = withDelay(wait, withTiming(done ? 1 : 0, t150));
+  }, [done]);
+  const disc = useAnimatedProps(() => ({ r: interpolate(p.value, [0, 1], [0, 10]), opacity: p.value }));
+  const ring = useAnimatedProps(() => ({ stroke: interpolateColor(p.value, [0, 1], [c.textFaint, c.amber]) as string }));
+  const mark = useAnimatedProps(() => ({ strokeDashoffset: interpolate(p.value, [0.3, 1], [16, 0], 'clamp') }));
+  return (
+    <Pressable hitSlop={12} onPress={onPress} style={{ width: size, height: size }} accessibilityRole="checkbox" accessibilityState={{ checked: done }}>
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        <ACircle cx="12" cy="12" r="10" fill="none" strokeWidth={1.5} animatedProps={ring} />
+        <ACircle cx="12" cy="12" fill={c.amber} animatedProps={disc} />
+        <APath d="m7.6 12.4 3 3 5.8-6" fill="none" stroke={c.scheme === 'dark' ? c.bg : c.card} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="16" animatedProps={mark} />
+      </Svg>
+    </Pressable>
+  );
+});
+
+/** A plain line's marker: a faint circle that turns the line into a task. */
+export function LineDot({ onPress }: { onPress: () => void }) {
+  const c = usePalette();
+  return (
+    <Pressable hitSlop={12} onPress={onPress} style={{ width: 22, height: 22, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Göreve çevir">
+      <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: c.textFaint, opacity: 0.35 }} />
+    </Pressable>
+  );
+}
+
+/** Tiny progress ring — a quiet hint, never a number. */
+export const ProgressRing = memo(function ProgressRing({ done, total, size = 16, stroke = 2 }: { done: number; total: number; size?: number; stroke?: number }) {
+  const c = usePalette();
+  const r = (size - stroke) / 2;
+  const C = 2 * Math.PI * r;
+  const frac = total === 0 ? 0 : done / total;
+  const v = useSharedValue(frac);
+  useEffect(() => {
+    v.value = withTiming(frac, t200);
+  }, [frac]);
+  const arc = useAnimatedProps(() => ({
+    strokeDashoffset: C * (1 - Math.min(1, Math.max(0, v.value))),
+    stroke: (v.value >= 0.999 ? c.amber : c.accent) as string,
+  }));
+  return (
+    <Svg width={size} height={size}>
+      <Circle cx={size / 2} cy={size / 2} r={r} stroke={c.ring} strokeWidth={stroke} fill="none" />
+      <ACircle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${C} ${C}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} animatedProps={arc} />
+    </Svg>
+  );
+});
+
+export function Hairline({ inset = 0 }: { inset?: number }) {
+  const c = usePalette();
+  return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: c.hairline, marginLeft: inset }} />;
+}
+
+/** Raised surface — used sparingly (menus, sheets). */
+export function Surface({ style, children }: { style?: StyleProp<ViewStyle>; children?: React.ReactNode }) {
   const c = usePalette();
   return (
     <View
       style={[
-        {
-          backgroundColor: c.card,
-          borderRadius: radius.l,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: c.cardBorder,
-          borderTopColor: c.scheme === 'dark' ? c.highlight : c.cardBorder,
-        },
-        elevated && {
-          shadowColor: c.shadow,
-          shadowOpacity: 1,
-          shadowRadius: c.scheme === 'dark' ? 18 : 14,
-          shadowOffset: { width: 0, height: c.scheme === 'dark' ? 8 : 6 },
-        },
+        { backgroundColor: c.card, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: c.cardBorder, shadowColor: c.shadow, shadowOpacity: 1, shadowRadius: 18, shadowOffset: { width: 0, height: 8 } },
         style,
         c.scheme === 'dark' && { borderTopColor: c.highlight },
       ]}
@@ -70,129 +151,11 @@ export function Surface({ style, children, elevated = true }: { style?: StylePro
   );
 }
 
-/**
- * The check. Empty ring → amber disc with a drawn checkmark. The stroke draws
- * on (dash offset) while the disc springs, so completion has a physical "give".
- */
-export const Check = memo(function Check({ id, done, size = 22, onPress, dim }: { id?: string; done: boolean; size?: number; onPress?: () => void; dim?: boolean }) {
-  const c = usePalette();
-  const p = useSharedValue(done ? 1 : 0);
-  const pop = useSharedValue(1);
-  useEffect(() => {
-    // An auto-completed ancestor waits for its child's ring to close, then blooms.
-    const wait = done ? takeCascadeDelay(id) : 0;
-    p.value = withDelay(wait, withSpring(done ? 1 : 0, spring.snappy));
-    if (done) pop.value = withDelay(wait, withSequence(withSpring(1.18, { damping: 9, stiffness: 520, mass: 0.5 }), withSpring(1, spring.bouncy)));
-  }, [done]);
-  const disc = useAnimatedProps(() => ({
-    r: interpolate(p.value, [0, 1], [0, 9.2]),
-    opacity: p.value,
-  }));
-  const ring = useAnimatedProps(() => ({
-    stroke: interpolateColor(p.value, [0, 1], [dim ? c.textFaint : c.textDim, c.amber]) as string,
-  }));
-  const mark = useAnimatedProps(() => ({ strokeDashoffset: interpolate(p.value, [0.35, 1], [16, 0], 'clamp') }));
-  const s = useAnimatedStyle(() => ({ transform: [{ scale: pop.value }] }));
-  return (
-    <APressable hitSlop={12} onPress={onPress} style={[{ width: size, height: size }, s]} accessibilityRole="checkbox" accessibilityState={{ checked: done }}>
-      <Svg width={size} height={size} viewBox="0 0 24 24">
-        <ACircle cx="12" cy="12" r="9.2" fill="none" strokeWidth={1.6} animatedProps={ring} />
-        <ACircle cx="12" cy="12" fill={c.amber} animatedProps={disc} />
-        <APath d="m7.6 12.4 3 3 5.8-6" fill="none" stroke={c.scheme === 'dark' ? c.bg : c.card} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="16" animatedProps={mark} />
-      </Svg>
-    </APressable>
-  );
+const styles = StyleSheet.create({
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  bar: { position: 'absolute', left: 0, right: 0, top: 0, zIndex: 20, borderBottomWidth: StyleSheet.hairlineWidth },
+  barRow: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 },
+  barSide: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  barCenter: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  back: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 6, height: 40 },
 });
-
-/**
- * Progress ring. Closes with a spring; on reaching 100% it waits a beat
- * (120ms, the constitution's cascade delay) and blooms amber.
- */
-export const ProgressRing = memo(function ProgressRing({ done, total, size = 26, label = true, stroke = 2.2 }: { done: number; total: number; size?: number; label?: boolean; stroke?: number }) {
-  const c = usePalette();
-  const r = (size - stroke) / 2;
-  const C = 2 * Math.PI * r;
-  const frac = total === 0 ? 0 : done / total;
-  const v = useSharedValue(frac);
-  const full = useSharedValue(frac >= 1 ? 1 : 0);
-  useEffect(() => {
-    v.value = withSpring(frac, spring.gentle);
-    full.value = frac >= 1 ? withDelay(120, withSpring(1, spring.snappy)) : withSpring(0, spring.snappy);
-  }, [frac]);
-  const arc = useAnimatedProps(() => ({
-    strokeDashoffset: C * (1 - Math.min(1, Math.max(0, v.value))),
-    stroke: interpolateColor(full.value, [0, 1], [c.accent, c.amber]) as string,
-  }));
-  const bloom = useAnimatedStyle(() => ({ transform: [{ scale: 1 + 0.06 * Math.sin(full.value * Math.PI) }] }));
-  return (
-    <Animated.View style={[{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }, bloom]}>
-      <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-        <Circle cx={size / 2} cy={size / 2} r={r} stroke={c.ring} strokeWidth={stroke} fill="none" />
-        <ACircle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={`${C} ${C}`}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          animatedProps={arc}
-        />
-      </Svg>
-      {label && size >= 30 ? (
-        <Text style={{ fontFamily: font.uiSemi, fontSize: size * 0.27, color: frac >= 1 ? c.amberInk : c.textDim, fontVariant: ['tabular-nums'] }}>
-          {done}/{total}
-        </Text>
-      ) : null}
-    </Animated.View>
-  );
-});
-
-/** Turkish-correct capitals: RN's textTransform is locale-blind (i → I, not İ). */
-export const upper = (s: string) => s.toLocaleUpperCase('tr-TR');
-
-export function Label({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
-  const c = usePalette();
-  const text = React.Children.toArray(children).join('');
-  return <Text style={[type.micro, { color: c.textDim }, style]}>{upper(text)}</Text>;
-}
-
-/** Icon button with an always-visible caption — no hidden menus, ever. */
-export function ToolButton({ icon, label, onPress, active, tint, disabled }: { icon: IconName; label: string; onPress: () => void; active?: boolean; tint?: string; disabled?: boolean }) {
-  const c = usePalette();
-  const color = disabled ? c.textFaint : active ? tint ?? c.accent : c.textDim;
-  return (
-    <Tap onPress={disabled ? undefined : onPress} style={{ flex: 1, alignItems: 'center', gap: 5, opacity: disabled ? 0.55 : 1 }} accessibilityLabel={label}>
-      <View
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 14,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: active ? (tint ? tint + '1F' : c.accentSoft) : c.surface,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: active ? 'transparent' : c.hairline,
-        }}
-      >
-        <Icon name={icon} size={20} color={color} />
-      </View>
-      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ fontFamily: font.uiMedium, fontSize: 10.5, letterSpacing: 0.1, color: active ? color : c.textDim }}>
-        {label}
-      </Text>
-    </Tap>
-  );
-}
-
-export function Pill({ icon, label, onPress, tone = 'neutral' }: { icon?: IconName; label: string; onPress?: () => void; tone?: 'neutral' | 'accent' | 'amber' }) {
-  const c = usePalette();
-  const fg = tone === 'accent' ? c.accent : tone === 'amber' ? c.amberInk : c.textDim;
-  const bg = tone === 'accent' ? c.accentSoft : tone === 'amber' ? c.amberSoft : c.surface;
-  return (
-    <Tap onPress={onPress} disabled={!onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, height: 30, borderRadius: radius.pill, backgroundColor: bg }}>
-      {icon ? <Icon name={icon} size={15} color={fg} weight={1.8} /> : null}
-      <Text style={{ fontFamily: font.uiMedium, fontSize: 13, color: fg, letterSpacing: -0.1 }}>{label}</Text>
-    </Tap>
-  );
-}

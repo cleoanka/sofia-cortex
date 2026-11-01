@@ -96,16 +96,42 @@ describe('vitrin, bağlantı, arama', () => {
     expect(e.path(deep).map((n) => n.title)).toEqual(['L0', 'L1', 'L2', 'L3', 'L4']);
   });
 
-  test('wikilink backlink + yeniden adlandırma referansları günceller', () => {
+  test('&bağlantı& backlink + yeniden adlandırma referansları günceller', () => {
     const { e } = mk();
     const mat = e.create(null, { title: 'Matematik' });
-    const fiz = e.create(null, { title: 'Fizik', body: 'Hareket konusu [[Matematik]] türevine dayanıyor #sınav' });
+    const fiz = e.create(null, { title: 'Fizik', body: 'Hareket konusu &Matematik& türevine dayanıyor &sınav&' });
     expect(e.backlinks(mat).map((b) => b.src)).toEqual([fiz]);
-    expect(e.backlinks(mat)[0].snippet).toContain('[[Matematik]]');
+    expect(e.backlinks(mat)[0].snippet).toContain('Matematik');
     e.update(mat, { title: 'Analiz' });
-    expect(e.get(fiz)!.body).toContain('[[Analiz]]');
+    expect(e.get(fiz)!.body).toContain('&Analiz&');
     expect(e.backlinks(mat).map((b) => b.src)).toEqual([fiz]);
-    expect(e.tagged('#sınav')).toEqual([fiz]);
+    expect(e.tagged('sınav')).toEqual([fiz]);
+    expect(e.allTags().map((t) => t.tag)).toEqual(['sınav']);
+  });
+
+  test('silinen not hortlamaz: alt ağaç + referanslar kalıcı gider, tek undo hepsini geri getirir', () => {
+    const { e } = mk();
+    const mat = e.create(null, { title: 'Matematik' });
+    const kid = e.create(mat, { title: 'Türev', isTask: true });
+    const fiz = e.create(null, { title: 'Fizik', body: 'Bkz. &Matematik& ve &Türev&.' });
+    e.remove(mat);
+    expect(e.get(mat)).toBeUndefined();
+    expect(e.get(kid)).toBeUndefined();
+    expect(e.get(fiz)!.body).toBe('Bkz. Matematik ve Türev.');
+    expect(e.resolve('matematik')).toBeUndefined();
+    expect(e.search('türev').map((h) => h.id)).toEqual([fiz]);
+    e.undo();
+    expect(e.get(kid)!.parentId).toBe(mat);
+    expect(e.get(fiz)!.body).toBe('Bkz. &Matematik& ve &Türev&.');
+  });
+
+  test('eski [[x]] / #etiket / @x sözdizimi tek seferde &x& olur', () => {
+    const { e } = mk();
+    const a = e.create(null, { title: 'A', body: 'bkz [[Fizik|fiz]] ve #sınav, @Ali' });
+    e.clearHistory();
+    expect(e.migrateSyntax()).toBe(1);
+    expect(e.get(a)!.body).toBe('bkz &Fizik& ve &sınav&, &Ali&');
+    expect(e.canUndo).toBe(false);
   });
 
   test('FTS5 Türkçe aksan-duyarsız önek araması', () => {
@@ -163,16 +189,16 @@ describe('mühür, otopilot, bölme', () => {
     expect(e.children(null)).toEqual([a, b]);
   });
 
-  test('silme → çöp → geri yükleme alt ağacıyla', () => {
+  test('silinen ebeveyn alt görevini de götürür; ebeveyn görevi yeniden hesaplanır', () => {
     const { e } = mk();
     const p = e.create(null, { title: 'p', isTask: true });
-    const c = e.create(p, { title: 'c', isTask: true });
-    e.remove(p);
-    expect(e.children(null)).toEqual([]);
-    expect(e.trash().map((n) => n.id)).toEqual([p]);
-    e.restore(p);
-    expect(e.children(p)).toEqual([c]);
-    expect(e.subtreeSql(p).map((r) => r.id)).toEqual([p, c]);
+    const a = e.create(p, { title: 'a', isTask: true });
+    const b = e.create(p, { title: 'b', isTask: true });
+    e.toggle(a);
+    expect(e.get(p)!.done).toBe(false);
+    e.remove(b);
+    expect(e.get(p)!.done).toBe(true);
+    expect(e.subtreeSql(p).map((r) => r.id)).toEqual([p, a]);
   });
 });
 
@@ -185,7 +211,7 @@ describe('performans (iPhone 12 bütçesi için JSC/bun vekili)', () => {
       for (let r = 0; r < 100; r++) {
         const root = e.create(null, { title: 'Kök ' + r, isTask: true });
         for (let i = 0; i < 9; i++) {
-          const mid = e.create(root, { title: `Konu ${r}.${i}`, isTask: true, body: `[[Kök ${(r + 1) % 100}]] #etiket${i}` });
+          const mid = e.create(root, { title: `Konu ${r}.${i}`, isTask: true, body: `&Kök ${(r + 1) % 100}& &etiket${i}&` });
           for (let j = 0; j < 10; j++) e.create(mid, { title: `Görev ${r}.${i}.${j} türev integral`, isTask: true });
         }
       }
@@ -232,20 +258,17 @@ describe('başlangıç cortex’i', () => {
     seedShowcase(e);
     e.clearHistory();
     expect(e.canUndo).toBe(false);
-    seedShowcase(e);
-    expect(e.allLive().filter((n) => n.role === 'inbox').length).toBe(1);
-    e.undo();
+
     const pinned = e.pinned().map((n) => n.title);
-    expect(pinned).toContain('Zor Sorular Listesi');
-    const zor = e.pinned().find((n) => n.title === 'Zor Sorular Listesi')!;
+    expect(pinned).toContain('Zor sorular');
+    const zor = e.pinned().find((n) => n.title === 'Zor sorular')!;
     expect(e.depth(zor.id)).toBe(3);
     expect(e.progress(zor.id)).toEqual({ done: 1, total: 3 });
     const mat = e.resolve('matematik')!;
     expect(e.progress(mat.id)).toEqual({ done: 2, total: 5 });
     expect(e.backlinks(mat.id).length).toBeGreaterThanOrEqual(2);
-    expect(e.isLocked(e.resolve('proje: kişisel web sitesi')!.id)).toBe(true);
-    expect(e.inbox()!.title).toBe('Gelen Kutusu');
     expect(e.nextActions().length).toBeGreaterThan(5);
+    expect(e.allTags().map((t) => t.tag).sort()).toEqual(['karar', 'odak', 'sınav']);
   });
 });
 
@@ -259,7 +282,7 @@ describe('veri egemenliği', () => {
     const paths = Object.keys(files);
     expect(paths).toContain('Sofia Cortex/Dersler/Matematik/Matematik.md');
     expect(files['Sofia Cortex/Dersler/Matematik/Matematik.md']).toContain('- [x] [[100 soru çöz]]');
-    expect(paths.some((p) => p.endsWith('Zor Sorular Listesi/Zor Sorular Listesi.md'))).toBe(true);
+    expect(paths.some((p) => p.endsWith('Zor sorular/Zor sorular.md'))).toBe(true);
     expect(new Set(paths.map((p) => p.toLowerCase())).size).toBe(paths.length);
   });
 });

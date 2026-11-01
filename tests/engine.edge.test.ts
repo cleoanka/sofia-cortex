@@ -2,11 +2,14 @@ import { describe, expect, test } from 'bun:test';
 import { CortexEngine, SealedError } from '../src/engine/CortexEngine';
 import {
   extractLinks,
-  openWikiQuery,
+  migrateLegacySyntax,
+  openLinkQuery,
   parseRefs,
   renameRefs,
   snippetAround,
+  stripRefs,
   titleKey,
+  unlinkRefs,
 } from '../src/engine/links';
 import { memoryDriver } from './bunDriver';
 
@@ -30,56 +33,66 @@ function mk(opts: { clock?: () => number; initialTime?: number } = {}) {
   };
 }
 
+function seedLegacyRow(
+  db: ReturnType<typeof memoryDriver>,
+  id: string,
+  parentId: string | null,
+  title: string,
+  deletedAt: number | null,
+  body = '',
+) {
+  db.run(
+    `INSERT INTO nodes (id, parent_id, sort, title, body, is_task, done, done_at, pinned, pin_order,
+      sealed, collapsed, steep_until, reminder_at, reminder_hook, reminder_id, role, created_at, updated_at, deleted_at)
+     VALUES (?, ?, 1, ?, ?, 0, 0, NULL, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 1000, 1000, ?)`,
+    [id, parentId, title, body, deletedAt],
+  );
+}
+
 describe('links.ts — parsing & tokenization edge cases', () => {
-  test('aliases [[A|b]] parse target, custom label and normalized key', () => {
-    const refs = parseRefs('See [[Target Page|Custom Label]] for details');
+  test('single link syntax &Title& parses visible text, normalized key, and offsets', () => {
+    const refs = parseRefs('See &Target Page& for details');
     expect(refs).toHaveLength(1);
     expect(refs[0]).toEqual({
       kind: 'wiki',
-      text: 'Custom Label',
+      text: 'Target Page',
       key: 'target page',
       start: 4,
-      end: 32,
+      end: 17,
     });
   });
 
-  test('whitespace inside wiki links and aliases [[ Target | Label ]] is trimmed and collapsed', () => {
-    const refs = parseRefs('See [[   Multi   Space   Target   |   Display   Name   ]]');
+  test('whitespace inside & Target & is trimmed and key normalized', () => {
+    const refs = parseRefs('See &   Multi   Space   Target   & here');
     expect(refs).toHaveLength(1);
-    expect(refs[0].text).toBe('Display   Name');
+    expect(refs[0].text).toBe('Multi   Space   Target');
     expect(refs[0].key).toBe('multi space target');
   });
 
-  test('dangling pipe [[Target|]], empty target [[|Alias]], and empty brackets [[]] are ignored', () => {
-    const refs = parseRefs('See [[Target|]] and [[|Alias]] and [[]] and [[   ]]');
-    expect(refs).toEqual([]);
+  test('empty ampersands &&, whitespace only &   &, and single & are ignored', () => {
+    expect(parseRefs('See && alone')).toEqual([]);
+    expect(parseRefs('See &   & alone')).toEqual([]);
+    expect(parseRefs('See & alone')).toEqual([]);
   });
 
-  test('alias with whitespace [[Target| ]] parses target and trims alias to empty text', () => {
-    const refs = parseRefs('See [[Target| ]]');
+  test('consecutive references &A&&B& both parse correctly', () => {
+    const refs = parseRefs('Check &A&&B& now');
+    expect(refs).toHaveLength(2);
+    expect(refs[0].text).toBe('A');
+    expect(refs[1].text).toBe('B');
+  });
+
+  test('unclosed ampersand and ampersands split across newlines are ignored', () => {
+    expect(parseRefs('Unclosed &link without end')).toEqual([]);
+    expect(parseRefs('link with &multi\nline& ampersand')).toEqual([]);
+  });
+
+  test('legacy [[wiki]], #tags, and @mentions are not parsed as references', () => {
+    const body = 'Check [[Legacy Link]] and #legacyTag plus @legacyUser and &Valid Link&';
+    const refs = parseRefs(body);
     expect(refs).toHaveLength(1);
-    expect(refs[0]).toEqual({
-      kind: 'wiki',
-      text: '',
-      key: 'target',
-      start: 4,
-      end: 16,
-    });
-  });
-
-  test('unclosed brackets and brackets split across newlines are ignored', () => {
-    const body = 'Unclosed [[link without end and [[multi\nline]] brackets';
-    const refs = parseRefs(body);
-    expect(refs).toEqual([]);
-  });
-
-  test('tags and mentions inside wiki links or aliases are suppressed', () => {
-    const body = 'Check [[Target #tagInside @mentionInside]] and [[Page|Alias #subTag @aliasMention]] plus #realTag @realUser';
-    const refs = parseRefs(body);
-    expect(refs).toHaveLength(4);
-    expect(refs.map((r) => r.kind)).toEqual(['wiki', 'wiki', 'tag', 'mention']);
-    expect(refs[2].text).toBe('#realTag');
-    expect(refs[3].text).toBe('@realUser');
+    expect(refs[0].text).toBe('Valid Link');
+    expect(refs[0].kind).toBe('wiki');
   });
 
   test('Turkish İ/ı case folding in titleKey maps dotted and dotless pairs identically', () => {
@@ -90,72 +103,68 @@ describe('links.ts — parsing & tokenization edge cases', () => {
     expect(titleKey('  İlke   ve   Işık  ')).toBe('ilke ve ışık');
   });
 
-  test('mentions at line start and after newlines parse with accurate offsets', () => {
-    const body = '@alice leading mention\n@bob second line (@charlie in parens)';
+  test('&refs& at line start, in parens, and after newlines parse with accurate offsets', () => {
+    const body = '&alice& leading mention\n&bob& second line (&charlie& in parens)';
     const refs = parseRefs(body);
     expect(refs).toHaveLength(3);
-    expect(refs[0]).toEqual({ kind: 'mention', text: '@alice', key: 'alice', start: 0, end: 6 });
-    expect(refs[1]).toEqual({ kind: 'mention', text: '@bob', key: 'bob', start: 23, end: 27 });
-    expect(refs[2]).toEqual({ kind: 'mention', text: '@charlie', key: 'charlie', start: 41, end: 49 });
+    expect(refs[0]).toEqual({ kind: 'wiki', text: 'alice', key: 'alice', start: 0, end: 7 });
+    expect(refs[1]).toEqual({ kind: 'wiki', text: 'bob', key: 'bob', start: 24, end: 29 });
+    expect(refs[2]).toEqual({ kind: 'wiki', text: 'charlie', key: 'charlie', start: 43, end: 52 });
     for (const r of refs) {
-      expect(body.slice(r.start, r.end)).toBe(r.text);
+      expect(body.slice(r.start, r.end)).toBe(`&${r.text}&`);
     }
   });
 
-  test('URLs with #fragment or /#frag or /@handle are not parsed as tags or mentions', () => {
-    const body = 'Check https://example.com/page#section and http://site.org/#intro and https://x.com/@devUser';
+  test('URLs with query ampersands or paths do not parse as links unless closed with &', () => {
+    const body = 'Check https://example.com/page?a=1&b=2 and https://x.com/test';
     const refs = parseRefs(body);
     expect(refs).toEqual([]);
   });
 
-  test('renameRefs updates targets while preserving aliases and plain links', () => {
-    const body = 'See [[Old Title|Custom Alias]] and [[Old Title]] here';
+  test('renameRefs updates &Old& to &New& case-insensitively and preserves other text', () => {
+    const body = 'See &Old Title& and &old title& and &Other& here';
     const renamed = renameRefs(body, 'Old Title', 'New Title');
-    expect(renamed).toBe('See [[New Title|Custom Alias]] and [[New Title]] here');
+    expect(renamed).toBe('See &New Title& and &New Title& and &Other& here');
   });
 
-  test('renameRefs updates @mentions only when new title contains no whitespace', () => {
-    const body = 'Contact @alice and [[alice]]';
-    const renamedSingle = renameRefs(body, 'alice', 'bob');
-    expect(renamedSingle).toBe('Contact @bob and [[bob]]');
-
-    const renamedSpaced = renameRefs(body, 'alice', 'Bob Smith');
-    expect(renamedSpaced).toBe('Contact @alice and [[Bob Smith]]');
+  test('stripRefs removes ampersands leaving clean text for display', () => {
+    const body = 'Check &Task A& and &Task B& for details';
+    expect(stripRefs(body)).toBe('Check Task A and Task B for details');
   });
 
-  test('openWikiQuery caret boundary cases: cursor at [[, query prefix, closed link, and newline', () => {
-    expect(openWikiQuery('start [[', 8)).toEqual({ query: '', start: 6 });
-    expect(openWikiQuery('start [[doc', 11)).toEqual({ query: 'doc', start: 6 });
-    expect(openWikiQuery('start [[doc]] end', 17)).toBeNull();
-    expect(openWikiQuery('start [[doc]] end', 11)).toEqual({ query: 'doc', start: 6 });
-    expect(openWikiQuery('start [[\nquery', 14)).toBeNull();
-    expect(openWikiQuery('start [[' + 'a'.repeat(61), 69)).toBeNull();
-    expect(openWikiQuery('plain text', 5)).toBeNull();
-    expect(openWikiQuery('', 0)).toBeNull();
+  test('openLinkQuery caret boundary cases: cursor at &, query prefix, closed link, and newline', () => {
+    expect(openLinkQuery('start &', 7)).toEqual({ query: '', start: 6 });
+    expect(openLinkQuery('start &doc', 10)).toEqual({ query: 'doc', start: 6 });
+    expect(openLinkQuery('start &doc& end', 15)).toBeNull();
+    expect(openLinkQuery('start &doc& end', 10)).toEqual({ query: 'doc', start: 6 });
+    expect(openLinkQuery('start &\nquery', 13)).toBeNull();
+    expect(openLinkQuery('start &' + 'a'.repeat(61), 68)).toBeNull();
+    expect(openLinkQuery('plain text', 5)).toBeNull();
+    expect(openLinkQuery('', 0)).toBeNull();
   });
 
   test('snippetAround adds ellipsis only when text extends beyond search radius', () => {
     const longPrefix = 'a'.repeat(60);
     const longSuffix = 'b'.repeat(60);
-    const body = `${longPrefix}[[Target]]${longSuffix}`;
+    const body = `${longPrefix}&Target&${longSuffix}`;
 
     const midSnip = snippetAround(body, 'target', 10);
     expect(midSnip.startsWith('…')).toBe(true);
     expect(midSnip.endsWith('…')).toBe(true);
 
-    const startBody = '[[Target]]' + 'b'.repeat(60);
+    const startBody = '&Target&' + 'b'.repeat(60);
     const startSnip = snippetAround(startBody, 'target', 10);
     expect(startSnip.startsWith('…')).toBe(false);
     expect(startSnip.endsWith('…')).toBe(true);
 
-    const endBody = 'a'.repeat(60) + '[[Target]]';
+    const endBody = 'a'.repeat(60) + '&Target&';
     const endSnip = snippetAround(endBody, 'target', 10);
     expect(endSnip.startsWith('…')).toBe(true);
     expect(endSnip.endsWith('…')).toBe(false);
 
-    const shortBody = 'Notes about [[Target]] today';
+    const shortBody = 'Notes about &Target& today';
     const shortSnip = snippetAround(shortBody, 'target', 50);
-    expect(shortSnip).toBe('Notes about [[Target]] today');
+    expect(shortSnip).toBe('Notes about Target today');
   });
 });
 
@@ -422,56 +431,51 @@ describe('task states & reactive auto-tick propagation', () => {
 });
 
 describe('trash, purge, restore & undo/redo safety', () => {
-  test('restore when parent was hard-purged reparents node to root', () => {
-    let time = 1_000;
-    const { e } = mk({ clock: () => time });
+  test('restore when parent was hard-purged reparents node to root (legacy soft-deleted rows)', () => {
+    let time = 3_000;
+    const { db } = mk();
+    seedLegacyRow(db, 'p', null, 'Parent', 1_000);
+    seedLegacyRow(db, 'c', 'p', 'Child', 2_000);
+    const e = new CortexEngine(db, () => time);
 
-    const p = e.create(null, { title: 'Parent' });
-    time = 1_000;
-    e.remove(p);
-
-    time = 2_000;
-    const c = e.create(p, { title: 'Child' }, { force: true });
-    e.remove(c);
-
-    time = 3_000;
+    expect(e.trash()).toHaveLength(2);
     const purged = e.purgeTrash(1_500);
     expect(purged).toBe(1);
-    expect(e.get(p)).toBeUndefined();
-    expect(e.get(c)!.deletedAt).toBe(2_000);
+    expect(e.get('p')).toBeUndefined();
+    expect(e.get('c')!.deletedAt).toBe(2_000);
 
-    e.restore(c);
-    expect(e.get(c)!.parentId).toBeNull();
-    expect(e.get(c)!.deletedAt).toBeNull();
-    expect(e.children(null)).toContain(c);
+    e.restore('c');
+    expect(e.get('c')!.parentId).toBeNull();
+    expect(e.get('c')!.deletedAt).toBeNull();
+    expect(e.children(null)).toContain('c');
   });
 
-  test('restore when parent is in trash reparents node to root', () => {
-    let time = 1_000;
-    const { e } = mk({ clock: () => time });
-    const p = e.create(null, { title: 'Parent' });
-    const c = e.create(p, { title: 'Child' });
+  test('restore when parent is in trash reparents node to root (legacy soft-deleted rows)', () => {
+    const { db } = mk();
+    seedLegacyRow(db, 'p', null, 'Parent', 3_000);
+    seedLegacyRow(db, 'c', 'p', 'Child', 2_000);
+    const e = new CortexEngine(db);
 
-    time = 2_000;
-    e.remove(c);
-    time = 3_000;
-    e.remove(p);
-
-    e.restore(c);
-    expect(e.get(c)!.parentId).toBeNull();
-    expect(e.children(null)).toContain(c);
+    e.restore('c');
+    expect(e.get('c')!.parentId).toBeNull();
+    expect(e.get('c')!.deletedAt).toBeNull();
+    expect(e.children(null)).toContain('c');
   });
 
-  test('purgeTrash is not undoable and removes entry from undo stack', () => {
-    const { e, db } = mk();
-    const a = e.create(null, { title: 'A' });
-    e.remove(a);
-    expect(e.undoLabel).toBe('Sil');
+  test('purgeTrash permanently deletes legacy soft-deleted rows and is not undoable', () => {
+    const { db } = mk();
+    seedLegacyRow(db, 'legacy', null, 'Legacy Trashed', 1_000);
+    const e = new CortexEngine(db);
+    expect(e.trash()).toHaveLength(1);
 
-    e.purgeTrash();
-    expect(e.undoLabel).not.toBe('Çöpü boşalt');
+    e.create(null, { title: 'A' });
+    expect(e.undoLabel).toBe('Oluştur');
+
+    const purged = e.purgeTrash(0);
+    expect(purged).toBe(1);
+    expect(e.undoLabel).toBe('Oluştur');
     expect(e.trash()).toHaveLength(0);
-    expect(db.all('SELECT * FROM nodes WHERE id = ?', [a])).toHaveLength(0);
+    expect(db.all('SELECT * FROM nodes WHERE id = ?', ['legacy'])).toHaveLength(0);
   });
 
   test('undo of remove restores full subtree, link indexes, and FTS search results', () => {
@@ -479,7 +483,7 @@ describe('trash, purge, restore & undo/redo safety', () => {
     const target = e.create(null, { title: 'Target' });
     const parent = e.create(null, {
       title: 'Parent',
-      body: 'Links to [[Target]] with #myTag and secretFtsKeyword',
+      body: 'Links to &Target& with &myTag& and secretFtsKeyword',
     });
     const child = e.create(parent, {
       title: 'Child',
@@ -487,20 +491,25 @@ describe('trash, purge, restore & undo/redo safety', () => {
     });
 
     expect(e.backlinks(target)).toHaveLength(1);
-    expect(e.tagged('#myTag')).toEqual([parent]);
+    expect(e.tagged('myTag')).toEqual([parent]);
     expect(e.search('secretFtsKeyword')).toHaveLength(1);
     expect(e.search('nestedFtsWord')).toHaveLength(1);
 
     e.remove(parent);
+    expect(e.get(parent)).toBeUndefined();
+    expect(e.get(child)).toBeUndefined();
     expect(e.backlinks(target)).toHaveLength(0);
-    expect(e.tagged('#myTag')).toHaveLength(0);
+    expect(e.tagged('myTag')).toHaveLength(0);
     expect(e.search('secretFtsKeyword')).toHaveLength(0);
     expect(e.search('nestedFtsWord')).toHaveLength(0);
     expect(e.children(null)).toHaveLength(1);
+    expect(db.all('SELECT * FROM nodes WHERE id = ?', [parent])).toHaveLength(0);
 
     e.undo();
+    expect(e.get(parent)).toBeDefined();
+    expect(e.get(child)).toBeDefined();
     expect(e.backlinks(target)).toHaveLength(1);
-    expect(e.tagged('#myTag')).toEqual([parent]);
+    expect(e.tagged('myTag')).toEqual([parent]);
     expect(e.search('secretFtsKeyword')).toHaveLength(1);
     expect(e.search('nestedFtsWord')).toHaveLength(1);
     expect(e.children(parent)).toEqual([child]);
@@ -735,8 +744,8 @@ describe('plan seal & special operations', () => {
 describe('graph, search & vault export/import', () => {
   test('graph() local lens depth 1 vs depth 2 and tag hubs', () => {
     const { e } = mk();
-    const a = e.create(null, { title: 'Node A', body: 'Links to [[Node B]] and #myHubTag' });
-    const b = e.create(null, { title: 'Node B', body: 'Links to [[Node C]]' });
+    const a = e.create(null, { title: 'Node A', body: 'Links to &Node B& and &myHubTag&' });
+    const b = e.create(null, { title: 'Node B', body: 'Links to &Node C&' });
     const c = e.create(null, { title: 'Node C', body: '' });
 
     const fullGraph = e.graph();
@@ -758,8 +767,8 @@ describe('graph, search & vault export/import', () => {
 
   test('exportJSON → importJSON(replace) round-trip maintains complete structural and attribute equality', () => {
     const { e: e1 } = mk();
-    const r1 = e1.create(null, { title: 'Root 1', body: 'Has #tag1 and [[Root 2]]', isTask: true });
-    const r2 = e1.create(null, { title: 'Root 2', body: 'Body 2' });
+    const r1 = e1.create(null, { title: 'Root 1', body: 'Has &tag1& and &Root 2&', isTask: true });
+    e1.create(null, { title: 'Root 2', body: 'Body 2' });
     const c1 = e1.create(r1, { title: 'Child 1', isTask: true });
     e1.setPinned(r1, true);
     e1.setSealed(r1, true);
@@ -860,6 +869,7 @@ describe('graph, search & vault export/import', () => {
       '"""',
       'AND OR NOT',
       '***',
+      '&ampersand&',
       '[[wiki]]',
       '#hashtag',
       "'single-quotes'",
@@ -880,23 +890,368 @@ describe('graph, search & vault export/import', () => {
     const { e } = mk();
     const p1 = e.create(null, { title: 'Duplicate' });
     e.create(null, { title: 'Duplicate' });
-    const reader = e.create(null, { title: 'Reader', body: 'Mentions [[Duplicate]]' });
+    const reader = e.create(null, { title: 'Reader', body: 'Mentions &Duplicate&' });
 
     e.update(p1, { title: 'Renamed Duplicate' });
-    expect(e.get(reader)!.body).toBe('Mentions [[Duplicate]]');
+    expect(e.get(reader)!.body).toBe('Mentions &Duplicate&');
   });
 
   test('backlinks excludes self references and multiple links in one body produce one backlink', () => {
     const { e } = mk();
-    const target = e.create(null, { title: 'Target Note', body: 'Self link [[Target Note]]' });
+    const target = e.create(null, { title: 'Target Note', body: 'Self link &Target Note&' });
     expect(e.backlinks(target)).toEqual([]);
 
     const other = e.create(null, {
       title: 'Other Note',
-      body: 'First link [[Target Note]] and second link [[Target Note|Alias]]',
+      body: 'First link &Target Note& and second link &Target Note&',
     });
     const backs = e.backlinks(target);
     expect(backs).toHaveLength(1);
     expect(backs[0].src).toBe(other);
+  });
+});
+
+describe('engine semantics v2 — new edge cases', () => {
+  test('openLinkQuery edge cases: odd ampersands, multiple pairs on one line, and caret at boundaries', () => {
+    // 1 ampersand -> odd -> returns query
+    expect(openLinkQuery('hello &world', 12)).toEqual({ query: 'world', start: 6 });
+    // Caret right after ampersand
+    expect(openLinkQuery('hello &', 7)).toEqual({ query: '', start: 6 });
+    // Caret before ampersand
+    expect(openLinkQuery('hello &world', 6)).toBeNull();
+
+    // 2 ampersands on the line -> even -> null
+    expect(openLinkQuery('&one& text', 10)).toBeNull();
+    expect(openLinkQuery('&one&', 5)).toBeNull();
+
+    // 3 ampersands on the line -> odd -> refers to last ampersand
+    expect(openLinkQuery('&first& &second', 15)).toEqual({ query: 'second', start: 8 });
+
+    // 4 ampersands on the line -> even -> null
+    expect(openLinkQuery('&first& &second&', 16)).toBeNull();
+
+    // 5 ampersands on the line -> odd -> refers to last ampersand
+    expect(openLinkQuery('&a& &b& &third', 14)).toEqual({ query: 'third', start: 8 });
+
+    // Caret inside a previous reference before its closing ampersand
+    expect(openLinkQuery('&first& &second', 4)).toEqual({ query: 'fir', start: 0 });
+    expect(openLinkQuery('&first& &second', 5)).toEqual({ query: 'firs', start: 0 });
+  });
+
+  test('openLinkQuery multiline behavior resets ampersand parity per line and enforces 60-char limit', () => {
+    // Previous line had odd ampersands, but current line has 0 ampersands
+    const text1 = 'Line 1 &unclosed\nLine 2 has no ampersand';
+    expect(openLinkQuery(text1, text1.length)).toBeNull();
+
+    // Previous line was closed, current line has 1 ampersand
+    const text2 = 'Line 1 &closed&\nLine 2 &activeQuery';
+    expect(openLinkQuery(text2, text2.length)).toEqual({ query: 'activeQuery', start: 23 });
+
+    // Query of exactly 60 characters is allowed
+    const maxQuery = 'a'.repeat(60);
+    expect(openLinkQuery('&' + maxQuery, 61)).toEqual({ query: maxQuery, start: 0 });
+
+    // Query of 61 characters is rejected
+    const overQuery = 'a'.repeat(61);
+    expect(openLinkQuery('&' + overQuery, 62)).toBeNull();
+  });
+
+  test('single ampersand in normal text like "A & B" never creates a link or tag', () => {
+    const { e } = mk();
+    expect(parseRefs('Tom & Jerry')).toEqual([]);
+    expect(parseRefs('A & B')).toEqual([]);
+    expect(extractLinks('A & B')).toEqual([]);
+
+    const note = e.create(null, {
+      title: 'Business Proposal',
+      body: 'Partnership between Company A & Company B.\nFocusing on R & D.\nTerms of M & A deal.',
+    });
+
+    expect(e.outgoing(note)).toEqual([]);
+    expect(e.tagged('A')).toEqual([]);
+    expect(e.tagged('B')).toEqual([]);
+    expect(e.tagged('Company A')).toEqual([]);
+    expect(e.tagged('Company B')).toEqual([]);
+    expect(e.tagged('R')).toEqual([]);
+    expect(e.tagged('D')).toEqual([]);
+    expect(e.allTags()).toEqual([]);
+
+    const graph = e.graph();
+    expect(graph.tags.size).toBe(0);
+  });
+
+  test('unlinkRefs removes only matching refs and leaves all other refs intact', () => {
+    const body = 'Prefix &Keep One& middle &Delete Me& and &Keep Two& end &Delete Me& finish.';
+    const unlinked = unlinkRefs(body, 'Delete Me');
+    expect(unlinked).toBe('Prefix &Keep One& middle Delete Me and &Keep Two& end Delete Me finish.');
+
+    // Non-matching title leaves body untouched
+    expect(unlinkRefs(unlinked, 'NonExistent')).toBe(unlinked);
+  });
+
+  test('unlinkRefs Turkish case-folding removes refs regardless of İ/ı casing', () => {
+    const body = 'Seyahat: &İSTANBUL&, &IĞDIR&, &ANKARA&.';
+    const unlinked1 = unlinkRefs(body, 'istanbul');
+    expect(unlinked1).toBe('Seyahat: İSTANBUL, &IĞDIR&, &ANKARA&.');
+
+    const unlinked2 = unlinkRefs(unlinked1, 'ığdır');
+    expect(unlinked2).toBe('Seyahat: İSTANBUL, IĞDIR, &ANKARA&.');
+  });
+
+  test('removing a node whose title is shared by another live node keeps the links in other notes', () => {
+    const { e } = mk();
+    const nodeA = e.create(null, { title: 'Shared Guide' });
+    const nodeB = e.create(null, { title: 'Shared Guide' });
+    const reader = e.create(null, {
+      title: 'Reader Note',
+      body: 'Please consult the &Shared Guide& for instructions.',
+    });
+
+    expect(e.backlinks(nodeA).map((b) => b.src)).toEqual([reader]);
+    expect(e.get(reader)!.body).toBe('Please consult the &Shared Guide& for instructions.');
+
+    // Remove first node sharing title: second node is still live, so links are kept
+    e.remove(nodeA);
+    expect(e.get(nodeA)).toBeUndefined();
+    expect(e.get(nodeB)).toBeDefined();
+    expect(e.get(reader)!.body).toBe('Please consult the &Shared Guide& for instructions.');
+    expect(e.resolve('shared guide')?.id).toBe(nodeB);
+    expect(e.backlinks(nodeB).map((b) => b.src)).toEqual([reader]);
+
+    // Remove the remaining node: now no live note answers to the title, so links are unlinked
+    e.remove(nodeB);
+    expect(e.get(nodeB)).toBeUndefined();
+    expect(e.get(reader)!.body).toBe('Please consult the Shared Guide for instructions.');
+    expect(e.resolve('shared guide')).toBeUndefined();
+  });
+
+  test('remove + undo restores bodies byte-for-byte across multiple referencing notes', () => {
+    const { e } = mk();
+    const target = e.create(null, { title: 'Quantum Computing' });
+    const n1 = e.create(null, {
+      title: 'Note 1',
+      body: 'Intro to &Quantum Computing&.\nSection A on &Quantum Computing& fundamentals.',
+    });
+    const n2 = e.create(null, {
+      title: 'Note 2',
+      body: 'Also references &Quantum Computing& here.',
+    });
+
+    const orig1 = e.get(n1)!.body;
+    const orig2 = e.get(n2)!.body;
+
+    e.remove(target);
+    expect(e.get(target)).toBeUndefined();
+    expect(e.get(n1)!.body).toBe('Intro to Quantum Computing.\nSection A on Quantum Computing fundamentals.');
+    expect(e.get(n2)!.body).toBe('Also references Quantum Computing here.');
+
+    e.undo();
+    expect(e.get(target)).toBeDefined();
+    expect(e.get(target)!.title).toBe('Quantum Computing');
+    expect(e.get(n1)!.body).toBe(orig1);
+    expect(e.get(n2)!.body).toBe(orig2);
+    expect(e.backlinks(target).map((b) => b.src).sort()).toEqual([n1, n2].sort());
+  });
+
+  test('removeAll purges the entire tree and undo restores all nodes, links, and hierarchy', () => {
+    const { e, db } = mk();
+    const root1 = e.create(null, { title: 'Root 1' });
+    const child1 = e.create(root1, { title: 'Child 1', isTask: true });
+    e.create(root1, { title: 'Child 2', isTask: true });
+    e.toggle(child1);
+
+    const root2 = e.create(null, {
+      title: 'Root 2',
+      body: 'See &Root 1& and tag &general&',
+    });
+    e.setPinned(root2, true);
+
+    const originalCount = e.size;
+    expect(originalCount).toBe(4);
+    expect(e.pinned()).toHaveLength(1);
+    expect(e.allTags().map((t) => t.tag)).toEqual(['general']);
+
+    e.removeAll();
+    expect(e.size).toBe(0);
+    expect(e.allLive()).toHaveLength(0);
+    expect(e.children(null)).toEqual([]);
+    expect(e.pinned()).toHaveLength(0);
+    expect(e.allTags()).toEqual([]);
+    expect(e.undoLabel).toBe('Hepsini sil');
+    expect(db.all('SELECT * FROM nodes')).toHaveLength(0);
+    expect(db.all('SELECT * FROM links')).toHaveLength(0);
+
+    e.undo();
+    expect(e.size).toBe(originalCount);
+    expect(e.children(null)).toEqual([root1, root2]);
+    expect(e.children(root1)).toHaveLength(2);
+    expect(e.get(child1)!.done).toBe(true);
+    expect(e.pinned().map((n) => n.id)).toEqual([root2]);
+    expect(e.allTags().map((t) => t.tag)).toEqual(['general']);
+    expect(e.backlinks(root1).map((b) => b.src)).toEqual([root2]);
+  });
+
+  test('migrateLegacySyntax is strictly idempotent across wiki links, tags, and mentions', () => {
+    const body =
+      'Header text [[Main Target|Custom Alias]] with #first_tag and @alice-99.\n' +
+      'Also [[Simple Target]] and (#parenthesized) plus @bob_user on #dev/project/sub.\n' +
+      'Already &existingLink& preserved.';
+
+    const pass1 = migrateLegacySyntax(body);
+    expect(pass1).toBe(
+      'Header text &Main Target& with &first_tag& and &alice-99&.\n' +
+        'Also &Simple Target& and (&parenthesized&) plus &bob_user& on &dev/project/sub&.\n' +
+        'Already &existingLink& preserved.',
+    );
+
+    const pass2 = migrateLegacySyntax(pass1);
+    expect(pass2).toBe(pass1);
+
+    const pass3 = migrateLegacySyntax(pass2);
+    expect(pass3).toBe(pass1);
+  });
+
+  test('history: false in update does not enter undoStack and preserves redoStack', () => {
+    const { e } = mk();
+    const a = e.create(null, { title: 'Node A' });
+    const b = e.create(null, { title: 'Node B' });
+    expect(e.canUndo).toBe(true);
+
+    e.undo(); // B is undone
+    expect(e.canRedo).toBe(true);
+
+    const labelBefore = e.undoLabel;
+    e.update(a, { body: 'Updated in background' }, { history: false });
+
+    expect(e.get(a)!.body).toBe('Updated in background');
+    expect(e.undoLabel).toBe(labelBefore);
+    expect(e.canRedo).toBe(true); // Redo stack was NOT cleared!
+
+    e.redo(); // Restores B
+    expect(e.get(b)).toBeDefined();
+    expect(e.get(a)!.body).toBe('Updated in background');
+  });
+
+  test('history: false in transact executes without creating an undo entry', () => {
+    const { e } = mk();
+    e.clearHistory();
+    expect(e.canUndo).toBe(false);
+
+    const n = e.transact(
+      'Background Task',
+      () => {
+        return e.create(null, { title: 'Auto Generated' });
+      },
+      { history: false },
+    );
+
+    expect(e.get(n)).toBeDefined();
+    expect(e.canUndo).toBe(false);
+    expect(e.undo()).toBeNull();
+  });
+
+  test('migrateSyntax converts existing notes with history: false without polluting undo history', () => {
+    const { e } = mk();
+    const a = e.create(null, { title: 'A', body: 'See [[B]] and #urgent' });
+    const b = e.create(null, { title: 'B', body: 'Contact @lead on #work' });
+    const labelBefore = e.undoLabel;
+
+    const changed = e.migrateSyntax();
+    expect(changed).toBe(2);
+    expect(e.get(a)!.body).toBe('See &B& and &urgent&');
+    expect(e.get(b)!.body).toBe('Contact &lead& on &work&');
+    expect(e.undoLabel).toBe(labelBefore);
+
+    const secondRun = e.migrateSyntax();
+    expect(secondRun).toBe(0);
+  });
+
+  test('graph() creates tag hubs prefixed with "#" for unresolved refs and upgrades to direct link when resolved', () => {
+    const { e } = mk();
+    const doc = e.create(null, { title: 'Doc', body: 'Mentions &editor& and &urgent&' });
+    const g1 = e.graph();
+
+    expect(g1.tags.has('#editor')).toBe(true);
+    expect(g1.tags.has('#urgent')).toBe(true);
+    expect(g1.ids).toContain('#editor');
+    expect(g1.ids).toContain('#urgent');
+
+    const editorHubIndex = g1.ids.indexOf('#editor');
+    const docIndex1 = g1.ids.indexOf(doc);
+    const hubEdge = g1.edges.find(
+      (edge) =>
+        (edge.a === docIndex1 && edge.b === editorHubIndex) ||
+        (edge.a === editorHubIndex && edge.b === docIndex1),
+    );
+    expect(hubEdge).toBeDefined();
+    expect(hubEdge!.w).toBe(0.6);
+
+    // Resolve "editor" by creating a live note with that title
+    const editorNode = e.create(null, { title: 'Editor' });
+    const g2 = e.graph();
+
+    expect(g2.tags.has('#editor')).toBe(false);
+    expect(g2.ids).not.toContain('#editor');
+    expect(g2.tags.has('#urgent')).toBe(true);
+
+    const editorNodeIndex = g2.ids.indexOf(editorNode);
+    const docIndex2 = g2.ids.indexOf(doc);
+    const directEdge = g2.edges.find(
+      (edge) =>
+        (edge.a === docIndex2 && edge.b === editorNodeIndex) ||
+        (edge.a === editorNodeIndex && edge.b === docIndex2),
+    );
+    expect(directEdge).toBeDefined();
+    expect(directEdge!.w).toBe(0.8);
+  });
+
+  test('setTask(id, false) inside an unfinished sealed plan throws SealedError', () => {
+    const { e } = mk();
+    const plan = e.create(null, { title: 'Sprint Plan' });
+    const t1 = e.create(plan, { title: 'Task 1', isTask: true });
+    e.create(plan, { title: 'Task 2', isTask: true });
+    e.setSealed(plan, true);
+
+    expect(e.isLocked(plan)).toBe(true);
+    expect(() => e.setTask(t1, false)).toThrow(SealedError);
+    expect(e.get(t1)!.isTask).toBe(true);
+
+    // setTask(t1, true) is allowed inside sealed plan
+    expect(() => e.setTask(t1, true)).not.toThrow();
+  });
+
+  test('setTask(id, false) succeeds once sealed plan is finished or unsealed', () => {
+    const { e } = mk();
+    const plan = e.create(null, { title: 'Sprint Plan' });
+    const t1 = e.create(plan, { title: 'Task 1', isTask: true });
+    e.setSealed(plan, true);
+
+    e.toggle(t1); // Plan completed!
+    expect(e.isLocked(plan)).toBe(false);
+
+    // Now converting back to note succeeds
+    expect(() => e.setTask(t1, false)).not.toThrow();
+    expect(e.get(t1)!.isTask).toBe(false);
+  });
+
+  test('unresolved refs act as tags in allTags() and tagged() and resolve() returns undefined', () => {
+    const { e } = mk();
+    const a = e.create(null, { title: 'A', body: 'Has &alpha& and &beta&' });
+    const b = e.create(null, { title: 'B', body: 'Also has &alpha&' });
+
+    expect(e.resolve('alpha')).toBeUndefined();
+    expect(e.tagged('alpha')).toEqual([a, b]);
+    expect(e.tagged('&alpha&')).toEqual([a, b]);
+    expect(e.tagged('#alpha')).toEqual([a, b]);
+
+    const tags = e.allTags();
+    expect(tags).toEqual([
+      { tag: 'alpha', count: 2 },
+      { tag: 'beta', count: 1 },
+    ]);
+
+    const alphaNode = e.create(null, { title: 'Alpha' });
+    expect(e.resolve('alpha')?.id).toBe(alphaNode);
+    expect(e.allTags()).toEqual([{ tag: 'beta', count: 1 }]);
   });
 });

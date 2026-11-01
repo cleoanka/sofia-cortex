@@ -6,15 +6,15 @@
 
 ```
 ┌───────────────────────────── UI (React Native, Fabric) ─────────────────────────────┐
-│ Navigator (zoom-portal stack) · Home · Node · Graph (Skia) · Observer · Autopilot     │
-│ Outline (gesture choreography) · CommandPalette · QuickCapture · ReminderSheet · Toast │
+│ Navigator · Home · Node editor · Graph (Skia) · Dış Göz (reading view) · Autopilot    │
+│ Rows + SwipeRow · KeyboardBar · CommandPalette · ReminderSheet · Toast · TopBar        │
 ├──────────────────── state ────────────────────┬────────────── platform ──────────────┤
 │ useNode / useChildren / useProgress /         │ db.ts (expo-sqlite driver, WAL)      │
 │ useVersion  (useSyncExternalStore, per-id)    │ notify.ts (chrono-triggers, routing) │
 │ nav.ts / sheet.ts (zustand)                   │ haptics.ts · shake.ts · vault.ts     │
 ├───────────────────────────────── engine (pure TS) ───────────────────────────────────┤
 │ CortexEngine — in-memory mirror + incremental indexes + transactional undo/redo       │
-│ schema.ts (SQLite + FTS5 + recursive CTEs) · links.ts · observer.ts · vault.ts · seed │
+│ schema.ts (SQLite + FTS5 + recursive CTEs) · links.ts · vault.ts · seed               │
 │ graph/physics.ts — Barnes-Hut force simulation, typed arrays, auto-sleep              │
 └───────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -36,8 +36,13 @@ meta(k, v)
 
 * **Fractional `sort`** — inserts never rewrite siblings; renumbering happens only when a gap
   collapses below 1e-9.
-* **Links by key, not id** — `[[Not]]` may exist before its target (Obsidian semantics).
-  Renaming a node rewrites `[[Old]]`/`@Old` in every backlinker inside the same transaction.
+* **One link syntax: `&Başlık&`** — easy on a phone keyboard. If a note answers to the title it
+  is a link, otherwise it behaves as a tag. Links are stored by key, so a reference may exist
+  before its target. Renaming rewrites `&Old&` in every backlinker in the same transaction.
+  Legacy `[[x]]` / `#tag` / `@x` bodies are migrated once at boot (`migrateSyntax`, not undoable).
+* **Delete is real.** `remove()` hard-deletes the subtree and turns `&Title&` into plain words in
+  every other note — one undo step restores everything, nothing else can. Following an
+  unresolved reference only searches; it never creates a note (no "ghost" resurrections).
 * **FTS5 via triggers** — the index can never drift from the source of truth.
   `remove_diacritics 2` makes `tur` find `Türev`.
 * **Recursive CTEs** (`SUBTREE_CTE`, `ANCESTORS_CTE`) are the canonical subtree/path queries
@@ -50,7 +55,7 @@ meta(k, v)
 | index | purpose |
 |---|---|
 | `kids: Map<parent, id[]>` | ordered live children; **copy-on-write**, so array identity changes exactly when contents change → perfect `useSyncExternalStore` snapshots |
-| `titles: Map<key, Set<id>>` | `[[link]]` resolution, `[[` autocomplete |
+| `titles: Map<key, Set<id>>` | `&link&` resolution, autocomplete in the keyboard bar |
 | `outLinks / inLinks` | backlinks + graph edges, O(1) per lookup |
 
 Every write goes through `apply(id, next)` — the single choke point that keeps every index
@@ -77,7 +82,7 @@ toggle(leaf) → put(leaf.done) → propagate(parent):
 Toggling a parent that has task children drives its whole subtree first, then ripples up.
 Creating a new open task under a completed parent re-opens it. The whole cascade is one
 undo step and one SQLite transaction. `toggle()` returns the flipped ancestors so the UI can
-choreograph: ring closes (spring) → 120 ms → parent blooms → `Success` + heavy double tap.
+choreograph: the child's check closes (150 ms timing) → the ancestor's check waits ~140 ms → `Success` + heavy tap.
 
 ### Plan Seal
 
@@ -118,28 +123,34 @@ Rules that keep it there:
   wakes it.
 * `CADisableMinimumFrameDurationOnPhone` lets ProMotion devices run at 120 Hz.
 
-## 5. Navigation — zoom portals
+## 5. Interface law
 
-A custom stack (`src/ui/Navigator.tsx`) instead of Expo Router: entering a node is *falling
-into it* — the new page grows out of the old one while the old page recedes and dims; the
-Observer enters with a 3-D lens turn; Autopilot fades through darkness. All screens stay
-mounted (scroll and editor state survive); only the top two are composited, deeper ones are
-`display: none`. Edge-swipe pops with the finger. Deep links (`sofia://node/<title>`,
-`sofia://observer/<title>`, `sofia://autopilot`, `sofia://graph`) and notification taps
-rebuild the stack deterministically.
+Things 3 / Apple Notes / Bear: whitespace and typography do the framing. No uppercase meta
+labels, no boxes in boxes, no invented words. Motion is `withTiming` 150–220 ms
+`Easing.out(cubic)` (`theme/motion.ts`) — no springs, no scale, no bounce.
 
-## 6. Observer — deterministic defamiliarisation
+* **TopBar** — every screen has a sticky, blurred bar under the status bar; content scrolls
+  beneath it, never over the clock.
+* **Node editor** — title, body and lines are edited in place (`useField`: local state, 350 ms
+  debounced commit coalesced into one undo step, flush on blur/unmount). The faint circle turns a
+  line into a task; Return makes the next line of the same kind; Return/Backspace on an empty
+  task turns it back into text. Tap on empty paper starts a new line.
+* **Keyboard** — `react-native-keyboard-controller`: `KeyboardAwareScrollView` keeps the caret
+  ≥ 80 pt above the keyboard; `KeyboardBar` (☑ Görev · ↳ Altına al · ↰ Üste çıkar · & Bağla ·
+  Bitti) rides on top of it and is tied to focus, so it also docks at the bottom with a hardware
+  keyboard. iOS commits a pending autocorrection when the bar is tapped, so inserts are deferred
+  one frame.
+* **Swipe** — left: red *Sil* (hard delete + undo toast); right: *Alt görev yap* (indent).
+* **Navigation** — a small custom stack: pages slide 28 pt and fade (200 ms); the reading view and
+  Autopilot fade in place. Covered screens stay mounted but freeze their derived views
+  (`SceneDepth` + `useVersion`). Deep links: `sofia://node/<title>`, `sofia://observer/<title>`,
+  `sofia://autopilot`, `sofia://graph`.
 
-`engine/observer.ts` (no model, no network):
+## 6. Dış Göz — the reading view
 
-* **1st → 3rd person** with conservative Turkish morphology rules (`-yorum→-yor`,
-  `-eceğim→-ecek`, `-sem→-se`, `-amam→-amaz`, `-mem lazım→-mesi lazım`, past tense, inner-world
-  possessives, pronouns; the first "ben" becomes **Özne**). When unsure, a word is left alone.
-* **Rumination lexicon** → *Gözlemlenen Örüntüler*: oscillation (ama/fakat), catastrophising,
-  social proof, deadline, obligation language, all-or-nothing, feeling-as-fact, stall.
-* **Fog index** — share of sentences carrying feeling/catastrophe/oscillation markers.
-* JS `\b` is ASCII-only and silently breaks on ç ğ ı ö ş ü; every pattern is rebuilt with a
-  Unicode-aware boundary.
+No analysis, no rewriting. The note's own words are set as a quiet serif book page (Newsreader)
+so you read them the way you would read someone else's, followed by one question — *“Şu an
+atılabilecek en küçük, somut adım ne?”* — and an input whose every line becomes a real task.
 
 ## 7. AI seam
 

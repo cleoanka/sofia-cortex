@@ -12,6 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getEngine } from './src/platform/db';
 import { haptic } from './src/platform/haptics';
@@ -24,7 +25,6 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { NodeScreen } from './src/screens/NodeScreen';
 import { ObserverScreen } from './src/screens/ObserverScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
-import { TrashScreen } from './src/screens/TrashScreen';
 import { ThemeProvider, usePalette } from './src/theme/ThemeProvider';
 import { CommandPalette } from './src/ui/CommandPalette';
 import { Navigator } from './src/ui/Navigator';
@@ -50,8 +50,6 @@ function render(r: Keyed) {
       return <AutopilotScreen scope={r.scope} startId={r.startId} />;
     case 'settings':
       return <SettingsScreen />;
-    case 'trash':
-      return <TrashScreen />;
   }
 }
 
@@ -104,11 +102,13 @@ export default function App() {
   if (!loaded) return null;
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <ThemeProvider>
-          <Root />
-        </ThemeProvider>
-      </SafeAreaProvider>
+      <KeyboardProvider>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <Root />
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

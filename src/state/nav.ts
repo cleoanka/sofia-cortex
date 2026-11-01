@@ -7,8 +7,7 @@ export type Route =
   | { name: 'graph'; focus?: NodeId }
   | { name: 'observer'; id: NodeId }
   | { name: 'autopilot'; scope: NodeId | null; startId?: NodeId }
-  | { name: 'settings' }
-  | { name: 'trash' };
+  | { name: 'settings' };
 
 export type Keyed = Route & { key: string };
 

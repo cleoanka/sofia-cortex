@@ -1,5 +1,5 @@
 import { ANCESTORS_CTE, SUBTREE_CTE, UPSERT_SQL, migrate, nodeParams, rowToNode, type NodeRow } from './schema';
-import { extractLinks, renameRefs, snippetAround, titleKey } from './links';
+import { extractLinks, migrateLegacySyntax, renameRefs, snippetAround, titleKey, unlinkRefs } from './links';
 import type { Backlink, CortexNode, LinkKind, NodeId, Progress, SearchHit, SqlDriver } from './types';
 
 type Listener = () => void;
@@ -440,17 +440,18 @@ export class CortexEngine {
   }
 
   outgoing(id: NodeId): { key: string; kind: LinkKind; target?: CortexNode }[] {
-    return (this.outLinks.get(id) ?? []).map((l) => ({ ...l, target: l.kind === 'tag' ? undefined : this.resolve(l.key) }));
+    return (this.outLinks.get(id) ?? []).map((l) => ({ ...l, target: this.resolve(l.key) }));
   }
 
-  /** Nodes carrying a tag. */
+  /** Notes that mention `&tag&` (any reference key, resolved or not). */
   tagged(tag: string): NodeId[] {
-    return [...(this.inLinks.get(tag.startsWith('#') ? tag.toLocaleLowerCase('tr-TR') : '#' + tag.toLocaleLowerCase('tr-TR')) ?? [])];
+    return [...(this.inLinks.get(titleKey(tag.replace(/^[&#]|&$/g, ''))) ?? [])];
   }
 
+  /** References that no note answers to — they behave as tags. */
   allTags(): { tag: string; count: number }[] {
     const out: { tag: string; count: number }[] = [];
-    for (const [k, s] of this.inLinks) if (k.startsWith('#')) out.push({ tag: k, count: s.size });
+    for (const [k, s] of this.inLinks) if (!this.titles.get(k)?.size) out.push({ tag: k, count: s.size });
     return out.sort((a, b) => b.count - a.count);
   }
 
@@ -788,17 +789,57 @@ export class CortexEngine {
     this.move(id, n.parentId, index);
   }
 
-  /** Soft delete the subtree; recoverable from trash or undo. */
+  /**
+   * Delete for real: the node, its whole subtree and every reference to it in
+   * other notes (`&Başlık&` becomes plain words). One undo step brings it all back;
+   * nothing else ever can — a dead link never resurrects a deleted note.
+   */
   remove(id: NodeId): void {
     this.transact('Sil', () => {
       const n = this.must(id);
       this.assertUnlocked(n.parentId);
-      const stamp = this.clock();
       const ids = this.subtree(id);
-      // Children first so the parent's list is intact while walking.
-      for (const d of ids.reverse()) this.put({ ...this.nodes.get(d)!, deletedAt: stamp });
+      const gone = new Set(ids);
+      const titles = ids.map((d) => this.nodes.get(d)!.title).filter((t) => t.trim());
+      for (const d of [...ids].reverse()) this.hardRemove(d);
+      for (const t of titles) {
+        const key = titleKey(t);
+        if (this.titles.get(key)?.size) continue; // another live note still answers to this name
+        for (const src of [...(this.inLinks.get(key) ?? [])]) {
+          if (gone.has(src)) continue;
+          const s = this.nodes.get(src)!;
+          const body = unlinkRefs(s.body, t);
+          if (body !== s.body) this.put({ ...s, body, updatedAt: this.clock() });
+        }
+      }
       this.propagate(n.parentId);
     });
+  }
+
+  /** Delete every note (undoable). */
+  removeAll(): void {
+    this.transact('Hepsini sil', () => {
+      for (const id of [...this.nodes.keys()]) this.hardRemove(id);
+    });
+  }
+
+  /** One-time conversion of `[[x]]`, `#tag`, `@x` bodies to `&x&`. Not part of history. */
+  migrateSyntax(): number {
+    let changed = 0;
+    this.transact(
+      'Sözdizimi',
+      () => {
+        for (const n of [...this.nodes.values()]) {
+          const body = migrateLegacySyntax(n.body);
+          if (body !== n.body) {
+            this.put({ ...n, body });
+            changed++;
+          }
+        }
+      },
+      { history: false },
+    );
+    return changed;
   }
 
   restore(id: NodeId): void {
@@ -928,12 +969,11 @@ export class CortexEngine {
       if (!adj.has(n.id)) adj.set(n.id, new Map());
       if (n.parentId) link(n.parentId, n.id, 1);
       for (const l of this.outLinks.get(n.id) ?? []) {
-        if (l.kind === 'tag') {
-          tags.add(l.key);
-          link(n.id, l.key, 0.6);
-        } else {
-          const t = this.resolve(l.key);
-          if (t) link(n.id, t.id, 0.8);
+        const t = this.resolve(l.key);
+        if (t) link(n.id, t.id, 0.8);
+        else {
+          tags.add('#' + l.key);
+          link(n.id, '#' + l.key, 0.6);
         }
       }
     }

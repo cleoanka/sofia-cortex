@@ -23,7 +23,8 @@ export function toMarkdownTree(e: CortexEngine): Record<string, string> {
     if (n.pinned) lines.push('pinned: true');
     if (n.sealed) lines.push('sealed: true');
     lines.push(`created: ${new Date(n.createdAt).toISOString()}`, '---', '', `# ${n.isTask ? (n.done ? '☑ ' : '☐ ') : ''}${n.title || 'Adsız'}`, '');
-    if (n.body.trim()) lines.push(n.body.trim(), '');
+    // `&x&` becomes Obsidian's `[[x]]` so the vault opens with live links.
+    if (n.body.trim()) lines.push(n.body.trim().replace(/&([^&\n]{1,80}?)&/g, '[[$1]]'), '');
     const kids = e.children(n.id).map((k) => e.get(k)!);
     if (kids.length) {
       lines.push('## İçindekiler', '');

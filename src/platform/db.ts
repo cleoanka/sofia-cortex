@@ -24,7 +24,11 @@ export function getEngine(): CortexEngine {
     engine.clearHistory();
     engine.setMeta('seeded', '1');
   }
-  // Trash older than 30 days evaporates quietly.
-  engine.purgeTrash(30 * 24 * 3600 * 1000);
+  // Leftovers from the soft-delete era, and the old link syntax, are cleaned once.
+  if (engine.meta('syntax') !== '2') {
+    engine.purgeTrash(0);
+    engine.migrateSyntax();
+    engine.setMeta('syntax', '2');
+  }
   return engine;
 }

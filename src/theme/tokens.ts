@@ -168,12 +168,18 @@ export const spring = {
 } as const;
 
 export const type = {
-  display: { fontFamily: font.uiSemi, fontSize: 30, lineHeight: 36, letterSpacing: -0.9 },
-  title: { fontFamily: font.uiSemi, fontSize: 22, lineHeight: 28, letterSpacing: -0.5 },
-  headline: { fontFamily: font.uiSemi, fontSize: 16, lineHeight: 22, letterSpacing: -0.2 },
+  largeTitle: { fontFamily: font.uiSemi, fontSize: 20, lineHeight: 26, letterSpacing: -0.4 },
+  barTitle: { fontFamily: font.uiSemi, fontSize: 17, lineHeight: 22, letterSpacing: -0.3 },
+  noteTitle: { fontFamily: font.uiSemi, fontSize: 26, lineHeight: 32, letterSpacing: -0.6 },
+  section: { fontFamily: font.uiSemi, fontSize: 13, lineHeight: 18, letterSpacing: -0.1 },
   body: { fontFamily: font.ui, fontSize: 16, lineHeight: 24, letterSpacing: -0.15 },
   row: { fontFamily: font.ui, fontSize: 16, lineHeight: 22, letterSpacing: -0.2 },
+  preview: { fontFamily: font.ui, fontSize: 13, lineHeight: 18, letterSpacing: -0.05 },
   small: { fontFamily: font.ui, fontSize: 13, lineHeight: 18, letterSpacing: -0.05 },
-  micro: { fontFamily: font.uiMedium, fontSize: 11, lineHeight: 14, letterSpacing: 0.6 },
+  // Legacy aliases used by Graph/Settings.
+  display: { fontFamily: font.uiBold, fontSize: 30, lineHeight: 36, letterSpacing: -0.7 },
+  title: { fontFamily: font.uiSemi, fontSize: 22, lineHeight: 28, letterSpacing: -0.5 },
+  headline: { fontFamily: font.uiSemi, fontSize: 16, lineHeight: 22, letterSpacing: -0.2 },
+  micro: { fontFamily: font.uiMedium, fontSize: 12, lineHeight: 15, letterSpacing: 0 },
   mono: { fontFamily: font.uiMedium, fontSize: 12, lineHeight: 16, letterSpacing: 0.2, fontVariant: ['tabular-nums' as const] },
 } as const;

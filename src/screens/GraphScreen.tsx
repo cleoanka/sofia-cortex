@@ -2,7 +2,9 @@ import { BlurStyle, Canvas, Group, Picture, Skia, matchFont, type SkPicture } fr
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { GestureDetector, useCompetingGestures, usePanGesture, usePinchGesture, useSimultaneousGestures, useTapGesture } from 'react-native-gesture-handler';
-import Animated, { FadeInDown, FadeOut, useDerivedValue, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, { useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
+import { fadeIn, fadeOut, t200 } from '../theme/motion';
+import { followRef } from '../ui/richText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import type { CortexEngine } from '../engine/CortexEngine';
@@ -12,9 +14,8 @@ import { haptic } from '../platform/haptics';
 import { useEngine, useVersion } from '../state/hooks';
 import { nav } from '../state/nav';
 import { usePalette } from '../theme/ThemeProvider';
-import { font, radius, spring, type, type Palette } from '../theme/tokens';
-import { Icon } from '../ui/Icon';
-import { ProgressRing, Surface, Tap } from '../ui/primitives';
+import { font, radius, type, type Palette } from '../theme/tokens';
+import { BackButton, ProgressRing, Surface, Tap, TopBar } from '../ui/primitives';
 
 type Kind = 0 | 1 | 2 | 3 | 4; // note, active task, done task, tag, blocked (sealed/has open subtasks)
 
@@ -65,7 +66,7 @@ function buildModel(e: CortexEngine, focus: NodeId | null, filters: Filters): Mo
     const id = g.ids[old];
     kinds[i] = kinds0[old];
     radii[i] = kinds[i] === 3 ? 3.4 : 3.6 + Math.min(9, Math.sqrt(degree[i]) * 1.9);
-    labels.push(id.startsWith('#') ? id : e.get(id)?.title || 'Adsız');
+    labels.push(id.startsWith('#') ? id.slice(1) : e.get(id)?.title || 'Adsız');
   });
   const order = [...labels.keys()].sort((a, b) => degree[b] - degree[a] || radii[b] - radii[a]);
   const text = labels.map((l) => {
@@ -199,9 +200,8 @@ export function GraphScreen({ focus: initialFocus }: { focus?: NodeId }) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [focus, setFocus] = useState<NodeId | null>(initialFocus ?? null);
-  const [filters, setFilters] = useState<Filters>({ tasks: true, notes: true, tags: true, done: true });
+  const [filters] = useState<Filters>({ tasks: true, notes: true, tags: true, done: true });
   const [selected, setSelected] = useState(-1);
-  const [asleep, setAsleep] = useState(false);
   const model = useMemo(() => buildModel(e, focus, filters), [e, focus, filters, v]);
   const paints = useMemo(() => makePaints(c), [c]);
   const sim = useRef(new ForceSim({ springLength: 54, sleepEnergy: 0.04 })).current;
@@ -233,7 +233,6 @@ export function GraphScreen({ focus: initialFocus }: { focus?: NodeId }) {
       if (sim.asleep) {
         raf.current = null;
         last.current = 0;
-        setAsleep(true);
         if (!userMoved.current) fitCamera(true);
         return;
       }
@@ -245,7 +244,6 @@ export function GraphScreen({ focus: initialFocus }: { focus?: NodeId }) {
   const wake = useCallback(
     (alpha?: number) => {
       sim.wake(alpha);
-      setAsleep(false);
       if (raf.current == null) raf.current = requestAnimationFrame(loop);
     },
     [loop],
@@ -256,17 +254,17 @@ export function GraphScreen({ focus: initialFocus }: { focus?: NodeId }) {
     // Pad for labels; frame inside the visible band between the controls and the legend.
     const w = Math.max(80, b.maxX - b.minX + 150);
     const h = Math.max(80, b.maxY - b.minY + 40);
-    const top = insets.top + 110;
-    const bottom = insets.bottom + 70;
+    const top = insets.top + 64;
+    const bottom = insets.bottom + 24;
     const s = Math.min(1.6, Math.max(0.12, Math.min((width - 24) / w, (height - top - bottom) / h)));
     const cx = (b.minX + b.maxX) / 2;
     const cy = (b.minY + b.maxY) / 2 + 12;
     const bandCenter = (top - bottom) / 2;
     fitted.current = true;
     scaleJS.current = s;
-    sc.value = animated ? withSpring(s, spring.lens) : s;
-    tx.value = animated ? withSpring(-cx * s, spring.lens) : -cx * s;
-    ty.value = animated ? withSpring(-cy * s + bandCenter, spring.lens) : -cy * s + bandCenter;
+    sc.value = animated ? withTiming(s, t200) : s;
+    tx.value = animated ? withTiming(-cx * s, t200) : -cx * s;
+    ty.value = animated ? withTiming(-cy * s + bandCenter, t200) : -cy * s + bandCenter;
   }
 
   useEffect(() => {
@@ -388,12 +386,6 @@ export function GraphScreen({ focus: initialFocus }: { focus?: NodeId }) {
 
   const sel = selected >= 0 ? model.ids[selected] : null;
   const selNode = sel && !sel.startsWith('#') ? e.get(sel) : null;
-  const stats = useMemo(() => {
-    let done = 0;
-    let open = 0;
-    for (const k of model.kinds) k === 2 ? done++ : k === 1 || k === 4 ? open++ : 0;
-    return { done, open };
-  }, [model]);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.graphBg }}>
@@ -405,61 +397,39 @@ export function GraphScreen({ focus: initialFocus }: { focus?: NodeId }) {
         </Canvas>
       </GestureDetector>
 
-      <View style={[styles.top, { paddingTop: insets.top + 6 }]} pointerEvents="box-none">
-        <Tap onPress={() => nav().pop()} style={[styles.round, { backgroundColor: c.surface, borderColor: c.hairline }]} accessibilityLabel="Geri">
-          <Icon name="back" size={19} color={c.text} />
-        </Tap>
-        <View style={[styles.segment, { backgroundColor: c.surface, borderColor: c.hairline }]}>
-          <Seg label="Küresel" icon="globe" active={!focus} onPress={() => (haptic.lens(), setFocus(null))} />
-          <Seg
-            label="Odak"
-            icon="focus"
-            active={!!focus}
-            onPress={() => {
-              haptic.lens();
-              const target = sel && !sel.startsWith('#') ? sel : (focus ?? e.pinned()[0]?.id ?? e.children(null)[0]);
-              if (target) setFocus(target);
-            }}
-          />
-        </View>
-      </View>
+      <TopBar
+        tint={c.graphBg}
+        left={<BackButton onPress={() => nav().pop()} />}
+        right={
+          <View style={[styles.segment, { backgroundColor: c.surface }]}>
+            <Seg label="Tümü" active={!focus} onPress={() => (haptic.select(), setFocus(null))} />
+            <Seg
+              label="Odak"
+              active={!!focus}
+              onPress={() => {
+                haptic.select();
+                const target = sel && !sel.startsWith('#') ? sel : (focus ?? e.pinned()[0]?.id ?? e.children(null)[0]);
+                if (target) setFocus(target);
+              }}
+            />
+          </View>
+        }
+      />
 
-      <View style={[styles.filters, { top: insets.top + 58 }]} pointerEvents="box-none">
-        {(
-          [
-            ['tasks', 'Görevler'],
-            ['done', 'Tamamlanan'],
-            ['notes', 'Notlar'],
-            ['tags', 'Etiketler'],
-          ] as const
-        ).map(([k, label]) => (
-          <Tap
-            key={k}
-            onPress={() => {
-              haptic.select();
-              setFilters((f) => ({ ...f, [k]: !f[k] }));
-            }}
-            style={[styles.filter, { backgroundColor: filters[k] ? c.accentSoft : 'transparent', borderColor: filters[k] ? 'transparent' : c.hairline }]}
-          >
-            <Text style={[type.small, { fontFamily: font.uiMedium, color: filters[k] ? c.accent : c.textDim }]}>{label}</Text>
-          </Tap>
-        ))}
-      </View>
-
-      {selNode || sel ? (
-        <Animated.View key={sel!} entering={FadeInDown.springify().damping(18)} exiting={FadeOut} style={[styles.preview, { bottom: insets.bottom + 16 }]}>
+      {sel ? (
+        <Animated.View key={sel} entering={fadeIn} exiting={fadeOut} style={[styles.preview, { bottom: insets.bottom + 16 }]}>
           <Surface style={{ padding: 16 }}>
-            {selNode ? <NodePreview id={selNode.id} onFocus={() => setFocus(selNode.id)} /> : <Text style={[type.headline, { color: c.tag }]}>{sel}</Text>}
+            {selNode ? (
+              <NodePreview id={selNode.id} onFocus={() => setFocus(selNode.id)} />
+            ) : (
+              <Tap onPress={() => followRef(sel.slice(1))}>
+                <Text style={[type.headline, { color: c.text }]}>&{sel.slice(1)}&</Text>
+                <Text style={[type.small, { color: c.textDim, marginTop: 2 }]}>Bu etiketi taşıyan notları göster</Text>
+              </Tap>
+            )}
           </Surface>
         </Animated.View>
-      ) : (
-        <View style={[styles.legend, { bottom: insets.bottom + 16 }]} pointerEvents="none">
-          <Legend color={c.amber} label={`${stats.done} tamamlandı`} filled />
-          <Legend color={c.accent} label={`${stats.open} aktif`} />
-          <Legend color={c.graphNode} label={`${model.ids.length} düğüm · ${model.edges.length} sinaps`} filled />
-          <Text style={[type.micro, { color: c.textFaint, marginLeft: 'auto' }]}>{asleep ? 'FİZİK UYKUDA · 0% CPU' : 'FİZİK AKTİF'}</Text>
-        </View>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -469,63 +439,39 @@ function NodePreview({ id, onFocus }: { id: NodeId; onFocus: () => void }) {
   const e = useEngine();
   const n = e.get(id)!;
   const p = e.progress(id);
-  const path = e.path(id).slice(0, -1).map((x) => x.title);
   return (
     <View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <View style={{ flex: 1 }}>
-          <Text numberOfLines={1} style={[type.micro, { color: c.textFaint }]}>
-            {path.length ? path.join(' › ') : 'EVREN'}
-          </Text>
-          <Text numberOfLines={2} style={[type.headline, { color: c.text, marginTop: 4 }]}>
-            {n.title || 'Adsız'}
-          </Text>
-        </View>
-        {p.total ? <ProgressRing done={p.done} total={p.total} size={38} /> : null}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <Text numberOfLines={2} style={[type.headline, { color: c.text, flex: 1 }]}>
+          {n.title || 'Adsız'}
+        </Text>
+        {p.total ? <ProgressRing done={p.done} total={p.total} size={18} /> : null}
       </View>
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
         <Tap onPress={() => (haptic.soft(), nav().push({ name: 'node', id }))} style={[styles.action, { backgroundColor: c.accent }]}>
-          <Text style={[type.small, { fontFamily: font.uiSemi, color: c.card }]}>Aç</Text>
+          <Text style={[type.small, { fontFamily: font.uiSemi, color: c.card }]}>Notu aç</Text>
         </Tap>
-        <Tap onPress={() => (haptic.lens(), onFocus())} style={[styles.action, { backgroundColor: c.surface }]}>
-          <Icon name="focus" size={15} color={c.text} />
-          <Text style={[type.small, { fontFamily: font.uiSemi, color: c.text }]}>Odak grafı</Text>
+        <Tap onPress={() => (haptic.select(), onFocus())} style={[styles.action, { backgroundColor: c.surface }]}>
+          <Text style={[type.small, { fontFamily: font.uiSemi, color: c.text }]}>Merkeze al</Text>
         </Tap>
-        {e.nextActions(id, 1).length ? (
-          <Tap onPress={() => (haptic.lens(), nav().push({ name: 'autopilot', scope: id }))} style={[styles.action, { backgroundColor: c.surface }]}>
-            <Icon name="tunnel" size={15} color={c.text} />
-            <Text style={[type.small, { fontFamily: font.uiSemi, color: c.text }]}>Otopilot</Text>
-          </Tap>
-        ) : null}
       </View>
     </View>
   );
 }
 
-function Seg({ label, icon, active, onPress }: { label: string; icon: 'globe' | 'focus'; active: boolean; onPress: () => void }) {
+function Seg({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   const c = usePalette();
   return (
-    <Tap onPress={onPress} style={[styles.seg, active && { backgroundColor: c.card, shadowColor: c.shadow, shadowOpacity: 1, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } }]}>
-      <Icon name={icon} size={15} color={active ? c.text : c.textDim} />
-      <Text style={[type.small, { fontFamily: font.uiSemi, color: active ? c.text : c.textDim }]}>{label}</Text>
+    <Tap onPress={onPress} style={[styles.seg, active && { backgroundColor: c.card }]}>
+      <Text style={[type.small, { fontFamily: font.uiMedium, color: active ? c.text : c.textDim }]}>{label}</Text>
     </Tap>
-  );
-}
-
-function Legend({ color, label, filled }: { color: string; label: string; filled?: boolean }) {
-  const c = usePalette();
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-      <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: filled ? color : 'transparent', borderWidth: filled ? 0 : 1.6, borderColor: color }} />
-      <Text style={[type.small, { color: c.textDim, fontSize: 12 }]}>{label}</Text>
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
   top: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
   round: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth },
-  segment: { flexDirection: 'row', padding: 3, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
+  segment: { flexDirection: 'row', padding: 2, borderRadius: radius.pill, marginRight: 8 },
   seg: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 32, borderRadius: radius.pill },
   filters: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   filter: { paddingHorizontal: 11, height: 28, borderRadius: radius.pill, justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth },
