@@ -9,7 +9,7 @@ import { nav } from '../state/nav';
 import { useSheet } from '../state/sheet';
 import { usePalette } from '../theme/ThemeProvider';
 import { ease } from '../theme/motion';
-import { font, type } from '../theme/tokens';
+import { type, sf } from '../theme/tokens';
 import { Icon } from './Icon';
 import { useKeyboardHeight } from './keyboard';
 import { Hairline, Tap } from './primitives';
@@ -96,7 +96,7 @@ function BodyFor({ id }: { id: string }) {
         </Text>
 
         {typing ? (
-          <Text style={[type.small, { color: c.text, marginTop: 12, fontFamily: font.uiMedium }]}>{fmt(t)}</Text>
+          <Text style={[type.small, { color: c.text, marginTop: 12, ...sf.uiMedium }]}>{fmt(t)}</Text>
         ) : (
           <>
             <View style={{ marginTop: 16 }}>
@@ -118,7 +118,7 @@ function BodyFor({ id }: { id: string }) {
               >
                 <Text style={[type.row, { color: c.text }]}>−15 dk</Text>
               </Tap>
-              <Text style={[type.small, { color: c.text, flex: 1, textAlign: 'center', fontFamily: font.uiMedium }]}>{fmt(t)}</Text>
+              <Text style={[type.small, { color: c.text, flex: 1, textAlign: 'center', ...sf.uiMedium }]}>{fmt(t)}</Text>
               <Tap onPress={() => (haptic.select(), setT((x) => x + 15 * 60_000))} style={[styles.step, { backgroundColor: c.surface }]}>
                 <Text style={[type.row, { color: c.text }]}>+15 dk</Text>
               </Tap>
@@ -167,5 +167,5 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 18 },
   hookInput: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, marginTop: 8 },
   btn: { height: 50, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  btnText: { fontFamily: font.uiSemi, fontSize: 16 },
+  btnText: { ...sf.uiSemi, fontSize: 16 },
 });

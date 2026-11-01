@@ -6,14 +6,15 @@ import { getEngine } from '../platform/db';
 import type { NodeId } from '../engine/types';
 import { haptic } from '../platform/haptics';
 import { editor } from '../state/editor';
-import { useEngine, useNode, useProgress } from '../state/hooks';
+import { useChildren, useEngine, useNode, useProgress } from '../state/hooks';
 import { nav } from '../state/nav';
 import { usePalette } from '../theme/ThemeProvider';
 import { fadeIn, layout } from '../theme/motion';
 import { type } from '../theme/tokens';
-import { deleteNode, guard, lineBackspaceEmpty, lineEnter, lineToggleKind, toggleTask } from './actions';
+import { canIndent, deleteNode, guard, lineBackspaceAtStart, lineEnter, lineOutdent, toggleTask } from './actions';
+import { fmtStyle, markerOf } from './format';
 import { Icon } from './Icon';
-import { Check, LineDot, Tap } from './primitives';
+import { Check, Tap } from './primitives';
 import { SwipeRow } from './SwipeRow';
 import { useField } from './useField';
 
@@ -54,11 +55,13 @@ export function Count({ done, total }: { done: number; total: number }) {
   return <Text style={[type.small, { color: done === total ? c.textFaint : c.textDim, fontVariant: ['tabular-nums'] }]}>{`${done}/${total}`}</Text>;
 }
 
+/** › opens a line as its own page — whenever there is more inside it (lines or text). */
 function Trailing({ id }: { id: NodeId }) {
   const c = usePalette();
-  const e = useEngine();
+  const n = useNode(id);
+  const kids = useChildren(id);
   const p = useProgress(id);
-  if (!e.hasChildren(id)) return null;
+  if (!kids.length && !n?.body.trim()) return null;
   return (
     <Tap onPress={() => (haptic.soft(), nav().push({ name: 'node', id }))} hitSlop={10} style={styles.trailing} accessibilityLabel="Aç">
       {p.total > 0 ? <Count done={p.done} total={p.total} /> : null}
@@ -68,11 +71,12 @@ function Trailing({ id }: { id: NodeId }) {
 }
 
 /**
- * An editable line on a page. Text is edited in place; the faint circle turns
- * it into a task; Return makes the next line; an empty Backspace undoes the
- * line's kind, then the line itself. Lines with children open as pages.
+ * An editable line on a page, Apple Notes style: plain text has no marker at
+ * all; a task shows its checkbox, a list its bullet or number. Return makes
+ * the next line of the same kind; on an empty line Return / Backspace first
+ * drops the kind, then steps out a level. Lines with children open as pages.
  */
-export const LineRow = memo(function LineRow({ id, depth, locked }: { id: NodeId; depth: number; locked: boolean }) {
+export const LineRow = memo(function LineRow({ id, depth, locked, num }: { id: NodeId; depth: number; locked: boolean; num?: number }) {
   const c = usePalette();
   const e = useEngine();
   const n = useNode(id);
@@ -83,15 +87,34 @@ export const LineRow = memo(function LineRow({ id, depth, locked }: { id: NodeId
   // Leaving the page with an empty line focused never fires blur; clean up here too.
   useEffect(() => () => dropIfEmpty(id), [id]);
   if (!n) return null;
+  const look = fmtStyle(n.fmt, c, n.done);
+  const marker = markerOf(n.fmt, c);
+  // A highlighted line renders its text as a span so the marker sits behind the glyphs only.
+  const { value, ...inputProps } = field.props;
+  // Center the marker on the first line of text whatever its size.
+  const markTop = 9 + ((look.lineHeight ?? 22) - 22) / 2;
+  const list = n.fmt?.l;
   return (
     <Animated.View entering={fadeIn} layout={layout}>
-      <SwipeRow onDelete={locked ? undefined : () => deleteNode(id)} onIndent={locked ? undefined : () => guard(() => e.indent(id))}>
+      <SwipeRow
+        onDelete={locked ? undefined : () => deleteNode(id)}
+        onIndent={locked ? undefined : () => canIndent(id) && guard(() => e.indent(id))}
+        onOutdent={locked || depth === 0 ? undefined : () => lineOutdent(id)}
+        bg={c.paper}
+      >
         <View style={[styles.line, { paddingLeft: 20 + depth * INDENT }]}>
-          <View style={styles.marker}>
-            {n.isTask ? <Check id={id} done={n.done} onPress={() => toggleTask(e, id)} /> : <LineDot onPress={() => lineToggleKind(id)} />}
-          </View>
+          {n.isTask ? (
+            <View style={[styles.marker, { paddingTop: markTop }]}>
+              <Check id={id} done={n.done} onPress={() => toggleTask(e, id)} />
+            </View>
+          ) : list ? (
+            <View style={[styles.marker, { width: list === 'number' ? 30 : 24 }]}>
+              <Text style={[look, styles.bullet, { color: c.text, textDecorationLine: 'none', fontStyle: 'normal' }]}>{list === 'number' ? `${num ?? 1}.` : '•'}</Text>
+            </View>
+          ) : null}
           <TextInput
-            {...field.props}
+            {...inputProps}
+            value={marker ? undefined : value}
             onBlur={() => {
               field.props.onBlur();
               dropIfEmpty(id);
@@ -104,18 +127,16 @@ export const LineRow = memo(function LineRow({ id, depth, locked }: { id: NodeId
               lineEnter(id, field.latest.current);
             }}
             onKeyPress={(ev) => {
-              if (ev.nativeEvent.key === 'Backspace' && field.latest.current === '') lineBackspaceEmpty(id);
+              if (ev.nativeEvent.key !== 'Backspace') return;
+              const atStart = field.sel.current.start === 0 && field.sel.current.end === 0;
+              if (field.latest.current === '' || atStart) lineBackspaceAtStart(id, field.latest.current === '');
             }}
-            placeholder={n.isTask ? 'Görev' : ''}
             placeholderTextColor={c.textFaint}
             selectionColor={c.accent}
-            style={[
-              type.row,
-              styles.input,
-              { color: n.done ? c.textFaint : c.text },
-              n.done && { textDecorationLine: 'line-through', textDecorationColor: c.textFaint },
-            ]}
-          />
+            style={[look, styles.input, { color: n.done ? c.textFaint : c.text }, n.done && { textDecorationColor: c.textFaint }]}
+          >
+            {marker ? <Text style={{ backgroundColor: marker }}>{value}</Text> : null}
+          </TextInput>
           <Trailing id={id} />
         </View>
       </SwipeRow>
@@ -123,50 +144,10 @@ export const LineRow = memo(function LineRow({ id, depth, locked }: { id: NodeId
   );
 });
 
-/** A note in a list (Home, pinned). Tap opens; the check toggles in place. */
-export const NoteRow = memo(function NoteRow({ id, showPath }: { id: NodeId; showPath?: boolean }) {
-  const c = usePalette();
-  const e = useEngine();
-  const n = useNode(id);
-  const p = useProgress(id);
-  if (!n) return null;
-  const sub = showPath
-    ? e
-        .path(id)
-        .slice(0, -1)
-        .map((x) => x.title)
-        .join(' › ')
-    : preview(n.body);
-  return (
-    <Animated.View entering={fadeIn} layout={layout}>
-      <SwipeRow onDelete={() => deleteNode(id)} onIndent={showPath ? undefined : () => guard(() => e.indent(id))}>
-        <Tap onPress={() => (haptic.soft(), nav().push({ name: 'node', id }))} style={styles.note}>
-          {n.isTask ? (
-            <View style={styles.marker}>
-              <Check id={id} done={n.done} onPress={() => toggleTask(e, id)} />
-            </View>
-          ) : null}
-          <View style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={[type.row, { color: n.done ? c.textFaint : c.text, fontFamily: 'Inter_500Medium' }]}>
-              {n.title || 'Yeni not'}
-            </Text>
-            {sub ? (
-              <Text numberOfLines={1} style={[type.preview, { color: c.textDim, marginTop: 2 }]}>
-                {sub}
-              </Text>
-            ) : null}
-          </View>
-          {p.total > 0 ? <Count done={p.done} total={p.total} /> : null}
-        </Tap>
-      </SwipeRow>
-    </Animated.View>
-  );
-});
-
 const styles = StyleSheet.create({
   line: { flexDirection: 'row', alignItems: 'flex-start', paddingRight: 14, minHeight: 44 },
-  marker: { width: 34, paddingTop: 11 },
-  input: { flex: 1, paddingTop: 10, paddingBottom: 10, paddingHorizontal: 0 },
+  marker: { width: 34, alignItems: 'flex-start' },
+  bullet: { paddingTop: 9 },
+  input: { flex: 1, paddingTop: 9, paddingBottom: 9, paddingHorizontal: 0 },
   trailing: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 13, paddingLeft: 8 },
-  note: { flexDirection: 'row', alignItems: 'center', gap: 0, paddingHorizontal: 20, paddingVertical: 12, minHeight: 56 },
 });

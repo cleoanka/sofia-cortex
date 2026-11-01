@@ -8,7 +8,7 @@ import { useChildren, useEngine, useNode } from '../state/hooks';
 import { nav } from '../state/nav';
 import { usePalette } from '../theme/ThemeProvider';
 import { fadeIn, layout } from '../theme/motion';
-import { font } from '../theme/tokens';
+import { font, sf } from '../theme/tokens';
 import { toggleTask } from '../ui/actions';
 import { KeyboardScrollView, nudgeCaret } from '../ui/keyboard';
 import { BackButton, Check, TopBar, useBarInset } from '../ui/primitives';
@@ -100,6 +100,6 @@ const styles = StyleSheet.create({
   rule: { width: 48, height: 1, marginTop: 16, marginBottom: 24 },
   prompt: { fontFamily: font.serifItalic, fontSize: 18, lineHeight: 26 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
-  stepText: { fontFamily: font.ui, fontSize: 16, lineHeight: 22, flex: 1 },
+  stepText: { ...sf.ui, fontSize: 16, lineHeight: 22, flex: 1 },
   plus: { width: 20, textAlign: 'center', fontSize: 18 },
 });

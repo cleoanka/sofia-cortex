@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { usePalette } from '../theme/ThemeProvider';
 import { t150, t200 } from '../theme/motion';
-import { font, type } from '../theme/tokens';
+import { type, sf } from '../theme/tokens';
 import { takeCascadeDelay } from './choreo';
 import { Icon, type IconName } from './Icon';
 
@@ -68,7 +68,7 @@ export function BackButton({ onPress, label = 'Geri' }: { onPress: () => void; l
   return (
     <Tap onPress={onPress} hitSlop={8} style={styles.back} accessibilityRole="button" accessibilityLabel={label}>
       <Icon name="back" size={22} color={c.accent} weight={2} />
-      <Text style={[type.barTitle, { color: c.accent, fontFamily: font.ui }]}>{label}</Text>
+      <Text style={[type.barTitle, { color: c.accent, ...sf.ui }]}>{label}</Text>
     </Tap>
   );
 }
@@ -97,16 +97,6 @@ export const Check = memo(function Check({ id, done, size = 22, onPress }: { id?
     </Pressable>
   );
 });
-
-/** A plain line's marker: a faint circle that turns the line into a task. */
-export function LineDot({ onPress }: { onPress: () => void }) {
-  const c = usePalette();
-  return (
-    <Pressable hitSlop={12} onPress={onPress} style={{ width: 22, height: 22, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Göreve çevir">
-      <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: c.textFaint, opacity: 0.35 }} />
-    </Pressable>
-  );
-}
 
 /** Tiny progress ring — a quiet hint, never a number. */
 export const ProgressRing = memo(function ProgressRing({ done, total, size = 16, stroke = 2 }: { done: number; total: number; size?: number; stroke?: number }) {

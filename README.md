@@ -5,15 +5,15 @@
 <h1 align="center">Sofia Cortex</h1>
 
 <p align="center">
-  Sakin bir not ve görev uygulaması.<br/>
-  Yaz, içine gir, böl, tikle — ve iş yapma zamanı geldiğinde tek bir şeye odaklan.
+  Apple Notlar sadeliğinde bir not ve görev uygulaması.<br/>
+  Yaz, biçimlendir, içine gir, böl, tikle — ve iş yapma zamanı geldiğinde tek bir şeye odaklan.
 </p>
 
 <p align="center">
   <img src="assets/screenshots/01-home-light.png" width="24%" />
   <img src="assets/screenshots/03-note.png" width="24%" />
-  <img src="assets/screenshots/05-observer.png" width="24%" />
-  <img src="assets/screenshots/06-autopilot.png" width="24%" />
+  <img src="assets/screenshots/13-format-panel.png" width="24%" />
+  <img src="assets/screenshots/14-table.png" width="24%" />
 </p>
 
 ---
@@ -38,24 +38,24 @@ Yapay zekâ yok, hesap yok, sunucu yok. Her şey telefonda, SQLite'ta.
 
 <table>
 <tr>
-<td width="33%"><img src="assets/screenshots/01-home-light.png"/><br/><sub><b>Ana sayfa.</b> Tek satırlık “Sıradaki”, sabitlenenler, notlar. Yeni not için sağ alttaki ＋.</sub></td>
-<td width="33%"><img src="assets/screenshots/02-home-dark.png"/><br/><sub><b>Koyu tema.</b> Sağ üstteki ay/güneş ile değişir; basılı tutunca Ayarlar.</sub></td>
-<td width="33%"><img src="assets/screenshots/03-note.png"/><br/><sub><b>Not.</b> Başlık, metin ve satırlar yerinde düzenlenir. Alt görevler bitince üst görev kendiliğinden tiklenir.</sub></td>
+<td width="33%"><img src="assets/screenshots/01-home-light.png"/><br/><sub><b>Ana sayfa.</b> Sabitlenenler, Bugün, Önceki 7 Gün… kutucuklar halinde. Her satırda başlık, görev sayacı, saat ve içinden bir önizleme. Altta arama ve yeni not kalemi.</sub></td>
+<td width="33%"><img src="assets/screenshots/02-home-dark.png"/><br/><sub><b>Koyu tema.</b> Saf siyah zemin, #1C1C1E kutucuklar. Sağ üstteki ay/güneş; basılı tutunca Ayarlar.</sub></td>
+<td width="33%"><img src="assets/screenshots/03-note.png"/><br/><sub><b>Not.</b> Düz satırların yanında hiçbir işaret yok; yalnızca görevlerde daire, listelerde madde/numara.</sub></td>
 </tr>
 <tr>
-<td><img src="assets/screenshots/04-keyboard.png"/><br/><sub><b>Yazarken.</b> Klavyenin üstünde: Görev · Altına al · Üste çıkar · Bağla · Bitti. Return yeni satır açar.</sub></td>
-<td><img src="assets/screenshots/05-observer.png"/><br/><sub><b>Dış Göz.</b> Kendi notun, dokunulmadan, sakin bir sayfada. Altında tek soru ve eylem adımları.</sub></td>
+<td><img src="assets/screenshots/04-keyboard.png"/><br/><sub><b>Yazarken.</b> Klavyenin üstünde kaydırılabilir araçlar: Aa · ☑ · • · 1. · ⊞ · İçeri al · Dışarı çık · Bağla, sağda sabit Bitti.</sub></td>
+<td><img src="assets/screenshots/13-format-panel.png"/><br/><sub><b>Aa.</b> Başlık, Alt Başlık, Büyük Gövde, Normal Metin, Kod; Modern / Klasik / Yuvarlak / Daktilo; B I U S ve dört renk vurgu kalemi.</sub></td>
+<td><img src="assets/screenshots/14-table.png"/><br/><sub><b>Tablo.</b> ⊞ ile eklenir; hücreler yerinde yazılır, ＋ ile satır/sütun eklenir, odaktayken satır/sütun/tablo silinir.</sub></td>
+</tr>
+<tr>
+<td><img src="assets/screenshots/05-observer.png"/><br/><sub><b>Dış Göz.</b> Kendi notun, dokunulmadan, kitap sayfası gibi. Altında tek soru ve eylem adımları.</sub></td>
 <td><img src="assets/screenshots/06-autopilot.png"/><br/><sub><b>Otopilot.</b> Tek görev. Tamamlandı · İkiye böl · Atla.</sub></td>
-</tr>
-<tr>
 <td><img src="assets/screenshots/07-graph.png"/><br/><sub><b>Graf.</b> Notlar ve aralarındaki bağlantılar. Dengeye oturunca fizik durur.</sub></td>
-<td><img src="assets/screenshots/08-menu-dark.png"/><br/><sub><b>••• menüsü.</b> Sabitle, taşı, hatırlatıcı, görev/not, planı kilitle.</sub></td>
-<td><img src="assets/screenshots/09-search-dark.png"/><br/><sub><b>Arama.</b> Aksan-duyarsız: “tur” yazınca “Türev” de bulunur.</sub></td>
 </tr>
 <tr>
-<td><img src="assets/screenshots/10-autopilot-split-keyboard.png"/><br/><sub><b>İkiye böl.</b> İki alan görevin hemen altında açılır; klavye onlara ulaşamaz.</sub></td>
-<td><img src="assets/screenshots/11-observer-keyboard.png"/><br/><sub><b>Eylem adımı yazarken.</b> Yazılan alan her zaman klavyenin üstünde kalır.</sub></td>
-<td><img src="assets/screenshots/12-subtask-counts.png"/><br/><sub><b>Alt görevler.</b> Solda tek bir daire, sağda sadece <code>2/5 ›</code>.</sub></td>
+<td><img src="assets/screenshots/08-menu-dark.png"/><br/><sub><b>••• menüsü.</b> Sabitle, taşı, hatırlatıcı, görev/not, planı kilitle. Numaralı liste kendini sayar.</sub></td>
+<td><img src="assets/screenshots/09-search-dark.png"/><br/><sub><b>Arama.</b> Aksan-duyarsız: “tur” yazınca “Türev” de bulunur.</sub></td>
+<td></td>
 </tr>
 </table>
 
@@ -63,20 +63,22 @@ Yapay zekâ yok, hesap yok, sunucu yok. Her şey telefonda, SQLite'ta.
 
 | | |
 |---|---|
-| Yeni not | Sağ alttaki ＋. Başlık yazılmaya hazır gelir; Return gövdeye geçer. Boş bırakılan not kendiliğinden silinir. |
-| Görev yapmak | Satırın solundaki soluk daireye dokun ya da klavye çubuğundaki ☐. |
-| Yeni satır | Satırdayken Return. Boş bir görevde Return veya ⌫ onu düz metne çevirir. Sayfanın boş kısmına dokunmak da yeni satır açar. Hiçbir şey yazılmadan bırakılan satır kendiliğinden kaybolur; boş bir görev satırı sayaçlara, *Sıradaki*'ye ve Otopilot'a asla girmez. |
-| Alt görev | Satırı sağa kaydır ya da ↳ Altına al. |
-| Silmek | Satırı sola kaydır ya da üst bardaki çöp kutusu. Hemen çıkan *Geri al* ile tek dokunuşta geri gelir. |
+| Yeni not | Ana sayfanın sağ altındaki kalem. Başlık yazılmaya hazır gelir; Return gövdeye geçer. Boş bırakılan not kendiliğinden silinir. |
+| Görev | Klavye çubuğunda ☑. Daire yalnızca o zaman çıkar; tekrar ☑ dersen tamamen kaybolur ve satır düz metne döner. |
+| Liste | • (madde) ve 1. (numaralı). Return aynı türden yeni satır açar. |
+| Biçim | Aa: paragraf stili, yazı tipi, kalın/italik/altı çizili/üstü çizili, vurgu kalemi. Biçim tüm satıra uygulanır. |
+| Tablo | ⊞. Hücreye dokun, yaz; sağdaki ＋ sütun, alttaki ＋ satır ekler. |
+| İçeri / dışarı | Satırı sağa kaydır ya da ↳: içeri al. **Boş satırda Return** veya **satır başında ⌫**: bir dış seviyeye çık. Sola kısa kaydırma ya da ↰ da dışarı alır. |
+| Silmek | Satırı sola uzun kaydır ya da üst bardaki çöp kutusu. Hemen çıkan *Geri al* ile tek dokunuşla geri gelir. |
 | Bağlantı | Klavye çubuğunda *Bağla* ya da `&` yaz: `&Fizik&`. Böyle bir not varsa bağlantıdır, yoksa etiket olur. |
 | Sabitlemek, taşımak, hatırlatıcı | Notun üst barındaki •••. Hatırlatıcı istenirse bildirime dokununca doğrudan Otopilot'ta açılır. |
-| Planı kilitlemek | ••• → Planı kilitle. Görevler bitene kadar sıralama ve yapı değişmez, sadece tiklenir. |
+| Planı kilitlemek | ••• → Planı kilitle. Görevler bitene kadar sıralama ve yapı değişmez, sadece tiklenir (biçim serbest). |
 
 ## Mimari
 
 ```
 Expo SDK 58 · React Native 0.88 (New Architecture) · TypeScript strict
-expo-sqlite (WAL + FTS5) · @shopify/react-native-skia (graf)
+expo-sqlite (WAL + FTS5) · @shopify/react-native-skia (graf) · San Francisco (sistem fontu)
 Reanimated 4 · Gesture Handler 3 · react-native-keyboard-controller
 ```
 
@@ -89,7 +91,7 @@ Ayrıntılar: [`ARCHITECTURE.md`](ARCHITECTURE.md) · çalışma kuralları: [`C
 tasarım yönü: [`docs/design-direction.md`](docs/design-direction.md)
 
 **Ölçülen performans (10 000 not):** açılışta yükleme ~15 ms · tikleme ve yukarı yayılma ~0.07 ms ·
-arama ~0.9 ms · graf fizik adımı ~6 ms. `bun test` → 99 test.
+arama ~0.9 ms · graf fizik adımı ~6 ms. `bun test` → 115 test.
 
 ## Kurulum
 
@@ -121,11 +123,12 @@ npx expo run:ios                     # simülatör
 
 ## Nasıl yapıldı
 
-Claude Opus 5.5 uygulamayı yazdı ve her ekranı simülatörde ekran görüntüsüyle kontrol etti. `agy`
-üzerinden **Gemini 4 Argon** fizik motorunu, bir mimari/performans incelemesini
+Claude Opus 5.5 uygulamayı yazdı ve her ekranı simülatörde (gerçek ekran klavyesiyle) ekran
+görüntüsüyle kontrol etti. `agy` üzerinden **Gemini 4 Argon** her büyük değişikliği hata avı için
+inceledi (bulduğu sorunlar düzeltildi), fizik motorunu, bir mimari/performans incelemesini
 ([`docs/design-review-2026-11-01.md`](docs/design-review-2026-11-01.md)) ve sade tasarım yönünü
-([`docs/design-direction.md`](docs/design-direction.md)) üretti; **Gemini 3.8 Flash** sınır durumu
-testlerini yazdı.
+([`docs/design-direction.md`](docs/design-direction.md)) üretti; **Gemini 3.8 Flash** sınır durumu ve
+biçim/tablo testlerini yazdı.
 
 ## Lisans
 

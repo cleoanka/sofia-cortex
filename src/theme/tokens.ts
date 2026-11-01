@@ -1,8 +1,8 @@
 /**
  * Design constitution. No raw #FFF / #000 anywhere in the app — every colour
- * comes from here. Light is warm alabaster paper; dark is deep obsidian with a
- * specular 1px top highlight on raised surfaces. Observer derives a third
- * palette from either: deeper, editorial, higher contrast.
+ * comes from here. iOS system grouped colours: light is #F2F2F7 with white
+ * inset cards, dark is true black with #1C1C1E cards; the accent is the warm
+ * amber of Apple Notes. Observer keeps its own editorial paper.
  */
 
 export type SchemeName = 'light' | 'dark';
@@ -48,6 +48,14 @@ export interface Palette {
   // Autopilot tunnel
   tunnelBg: string;
   tunnelGlow: string;
+  // Marker highlights (Aa panel) and the iOS search-field fill
+  hlYellow: string;
+  hlGreen: string;
+  hlBlue: string;
+  hlPink: string;
+  fill: string;
+  /** The writing surface of a note (white / black, like Apple Notes). */
+  paper: string;
   // Graph
   graphBg: string;
   graphNode: string;
@@ -57,100 +65,116 @@ export interface Palette {
 
 export const light: Palette = {
   scheme: 'light',
-  bg: '#FBF9F5',
-  bgSunk: '#F3EFEA',
-  surface: '#F3EFEA',
+  bg: '#F2F2F7',
+  bgSunk: '#E5E5EA',
+  surface: '#E9E9EE',
   card: '#FFFFFF',
-  cardBorder: '#E6E1DA',
+  cardBorder: '#E5E5EA',
   highlight: 'rgba(255,255,255,0.9)',
-  hairline: '#E9E4DD',
-  text: '#18181B',
-  textDim: '#71717A',
-  textFaint: '#8C857E',
-  accent: '#4F46E5',
-  accentSoft: 'rgba(79,70,229,0.09)',
-  amber: '#D97706',
-  amberSoft: 'rgba(217,119,6,0.12)',
-  amberInk: '#B45309',
-  success: '#3F7D58',
-  danger: '#B4443A',
-  shadow: 'rgba(41,32,20,0.10)',
-  scrim: 'rgba(24,20,16,0.28)',
-  link: '#4338CA',
-  tag: '#9A5B13',
-  ring: '#E7E1D8',
+  hairline: '#DCDCE0',
+  text: '#1C1C1E',
+  textDim: '#8A8A8E',
+  textFaint: '#AEAEB2',
+  accent: '#E59A00',
+  accentSoft: 'rgba(229,154,0,0.14)',
+  amber: '#E59A00',
+  amberSoft: 'rgba(229,154,0,0.14)',
+  amberInk: '#A86F00',
+  success: '#34C759',
+  danger: '#FF3B30',
+  shadow: 'rgba(0,0,0,0.08)',
+  scrim: 'rgba(0,0,0,0.25)',
+  link: '#A86F00',
+  tag: '#8A8A8E',
+  ring: '#E5E5EA',
   invBg: '#1A1A1D',
   invText: '#F7F5F0',
   invDim: '#A8A29E',
   invAccent: '#F2C27A',
-  onAmber: '#1C1917',
-  obsBg: '#EDE6DA',
-  obsPaper: '#F7F2E8',
-  obsInk: '#1C1A17',
-  obsInkDim: '#6E655A',
-  obsRule: '#CFC4B2',
+  onAmber: '#FFFFFF',
+  obsBg: '#F2F2F7',
+  obsPaper: '#FFFFFF',
+  obsInk: '#1C1C1E',
+  obsInkDim: '#8A8A8E',
+  obsRule: '#E5E5EA',
   obsStamp: '#A2341F',
-  tunnelBg: '#F1ECE4',
+  tunnelBg: '#F2F2F7',
   tunnelGlow: 'rgba(217,119,6,0.16)',
-  graphBg: '#F6F2EC',
-  graphNode: '#3F3F46',
+  hlYellow: 'rgba(255,214,10,0.38)',
+  hlGreen: 'rgba(52,199,89,0.26)',
+  hlBlue: 'rgba(10,132,255,0.20)',
+  hlPink: 'rgba(255,55,95,0.20)',
+  fill: 'rgba(118,118,128,0.12)',
+  paper: '#FFFFFF',
+  graphBg: '#F2F2F7',
+  graphNode: '#3A3A3C',
   graphEdge: 'rgba(63,63,70,0.16)',
-  graphTag: '#B45309',
+  graphTag: '#A86F00',
 };
 
 export const dark: Palette = {
   scheme: 'dark',
-  bg: '#090A0C',
-  bgSunk: '#060709',
-  surface: '#111318',
-  card: '#181B22',
-  cardBorder: 'rgba(255,255,255,0.06)',
-  highlight: 'rgba(255,255,255,0.07)',
-  hairline: 'rgba(255,255,255,0.06)',
-  text: '#F4F4F6',
-  textDim: '#8E929F',
-  textFaint: '#6E7280',
-  accent: '#8B85FF',
-  accentSoft: 'rgba(139,133,255,0.12)',
-  amber: '#F2A33A',
-  amberSoft: 'rgba(242,163,58,0.13)',
-  amberInk: '#F2A33A',
-  success: '#7BC496',
-  danger: '#E5796E',
-  shadow: 'rgba(0,0,0,0.55)',
-  scrim: 'rgba(0,0,0,0.55)',
-  link: '#A5A0FF',
-  tag: '#E8B36A',
-  ring: 'rgba(255,255,255,0.09)',
-  invBg: '#181B22',
+  bg: '#000000',
+  bgSunk: '#000000',
+  surface: '#2C2C2E',
+  card: '#1C1C1E',
+  cardBorder: '#2C2C2E',
+  highlight: 'rgba(255,255,255,0.05)',
+  hairline: '#38383A',
+  text: '#FFFFFF',
+  textDim: '#8D8D93',
+  textFaint: '#636366',
+  accent: '#F0A500',
+  accentSoft: 'rgba(240,165,0,0.16)',
+  amber: '#F0A500',
+  amberSoft: 'rgba(240,165,0,0.16)',
+  amberInk: '#F0A500',
+  success: '#30D158',
+  danger: '#FF453A',
+  shadow: 'rgba(0,0,0,0.6)',
+  scrim: 'rgba(0,0,0,0.6)',
+  link: '#F0A500',
+  tag: '#8D8D93',
+  ring: '#38383A',
+  invBg: '#1C1C1E',
   invText: '#F4F4F6',
   invDim: '#8E929F',
   invAccent: '#F2A33A',
-  onAmber: '#090A0C',
-  obsBg: '#050506',
-  obsPaper: '#0E0E10',
-  obsInk: '#ECE6DA',
-  obsInkDim: '#8F877A',
-  obsRule: 'rgba(236,230,218,0.16)',
+  onAmber: '#1C1C1E',
+  obsBg: '#000000',
+  obsPaper: '#000000',
+  obsInk: '#F2F2F7',
+  obsInkDim: '#8D8D93',
+  obsRule: '#38383A',
   obsStamp: '#E0654B',
-  tunnelBg: '#040405',
+  tunnelBg: '#000000',
   tunnelGlow: 'rgba(242,163,58,0.10)',
-  graphBg: '#07080A',
+  hlYellow: 'rgba(255,214,10,0.30)',
+  hlGreen: 'rgba(48,209,88,0.26)',
+  hlBlue: 'rgba(10,132,255,0.30)',
+  hlPink: 'rgba(255,55,95,0.28)',
+  fill: 'rgba(118,118,128,0.24)',
+  paper: '#000000',
+  graphBg: '#000000',
   graphNode: '#C9CBD3',
   graphEdge: 'rgba(201,203,211,0.11)',
-  graphTag: '#E8B36A',
+  graphTag: '#F0A500',
 };
 
 export const font = {
-  ui: 'Inter_400Regular',
-  uiMedium: 'Inter_500Medium',
-  uiSemi: 'Inter_600SemiBold',
-  uiBold: 'Inter_700Bold',
   serif: 'Newsreader_400Regular',
   serifItalic: 'Newsreader_400Regular_Italic',
   serifMedium: 'Newsreader_500Medium',
   serifSemi: 'Newsreader_600SemiBold',
   serifLightItalic: 'Newsreader_300Light_Italic',
+} as const;
+
+/** San Francisco (the iOS system font) by weight — the UI typeface. */
+export const sf = {
+  ui: { fontFamily: 'System', fontWeight: '400' },
+  uiMedium: { fontFamily: 'System', fontWeight: '500' },
+  uiSemi: { fontFamily: 'System', fontWeight: '600' },
+  uiBold: { fontFamily: 'System', fontWeight: '700' },
 } as const;
 
 /** 4pt grid. */
@@ -168,18 +192,18 @@ export const spring = {
 } as const;
 
 export const type = {
-  largeTitle: { fontFamily: font.uiSemi, fontSize: 20, lineHeight: 26, letterSpacing: -0.4 },
-  barTitle: { fontFamily: font.uiSemi, fontSize: 17, lineHeight: 22, letterSpacing: -0.3 },
-  noteTitle: { fontFamily: font.uiSemi, fontSize: 26, lineHeight: 32, letterSpacing: -0.6 },
-  section: { fontFamily: font.uiSemi, fontSize: 13, lineHeight: 18, letterSpacing: -0.1 },
-  body: { fontFamily: font.ui, fontSize: 16, lineHeight: 24, letterSpacing: -0.15 },
-  row: { fontFamily: font.ui, fontSize: 16, lineHeight: 22, letterSpacing: -0.2 },
-  preview: { fontFamily: font.ui, fontSize: 13, lineHeight: 18, letterSpacing: -0.05 },
-  small: { fontFamily: font.ui, fontSize: 13, lineHeight: 18, letterSpacing: -0.05 },
+  largeTitle: { ...sf.uiBold, fontSize: 34, lineHeight: 41, letterSpacing: 0.37 },
+  barTitle: { ...sf.uiSemi, fontSize: 17, lineHeight: 22, letterSpacing: -0.41 },
+  noteTitle: { ...sf.uiBold, fontSize: 28, lineHeight: 34, letterSpacing: 0.36 },
+  section: { ...sf.uiBold, fontSize: 20, lineHeight: 25, letterSpacing: 0.38 },
+  body: { ...sf.ui, fontSize: 17, lineHeight: 24, letterSpacing: -0.41 },
+  row: { ...sf.ui, fontSize: 17, lineHeight: 22, letterSpacing: -0.41 },
+  preview: { ...sf.ui, fontSize: 15, lineHeight: 20, letterSpacing: -0.24 },
+  small: { ...sf.ui, fontSize: 15, lineHeight: 20, letterSpacing: -0.24 },
   // Legacy aliases used by Graph/Settings.
-  display: { fontFamily: font.uiBold, fontSize: 30, lineHeight: 36, letterSpacing: -0.7 },
-  title: { fontFamily: font.uiSemi, fontSize: 22, lineHeight: 28, letterSpacing: -0.5 },
-  headline: { fontFamily: font.uiSemi, fontSize: 16, lineHeight: 22, letterSpacing: -0.2 },
-  micro: { fontFamily: font.uiMedium, fontSize: 12, lineHeight: 15, letterSpacing: 0 },
-  mono: { fontFamily: font.uiMedium, fontSize: 12, lineHeight: 16, letterSpacing: 0.2, fontVariant: ['tabular-nums' as const] },
+  display: { ...sf.uiBold, fontSize: 30, lineHeight: 36, letterSpacing: 0.36 },
+  title: { ...sf.uiSemi, fontSize: 22, lineHeight: 28, letterSpacing: 0.35 },
+  headline: { ...sf.uiSemi, fontSize: 17, lineHeight: 22, letterSpacing: -0.41 },
+  micro: { ...sf.uiMedium, fontSize: 12, lineHeight: 15, letterSpacing: 0 },
+  mono: { ...sf.uiMedium, fontSize: 12, lineHeight: 16, letterSpacing: 0.2, fontVariant: ['tabular-nums' as const] },
 } as const;

@@ -9,7 +9,7 @@ import { useEngine, useNode } from '../state/hooks';
 import { nav } from '../state/nav';
 import { usePalette } from '../theme/ThemeProvider';
 import { fadeIn, fadeOut } from '../theme/motion';
-import { font } from '../theme/tokens';
+import { sf } from '../theme/tokens';
 import { markCascade } from '../ui/choreo';
 import { useKeyboardHeight } from '../ui/keyboard';
 import { IconButton, Tap, TopBar, useBarInset } from '../ui/primitives';
@@ -181,13 +181,13 @@ function Stage({ id, onDone, onSkip }: { id: NodeId; onDone: () => void; onSkip:
 const styles = StyleSheet.create({
   stage: { flex: 1, paddingHorizontal: 28, paddingBottom: 12, justifyContent: 'space-between' },
   center: { flex: 1, justifyContent: 'center' },
-  title: { fontFamily: font.uiSemi, fontSize: 28, lineHeight: 35, letterSpacing: -0.7 },
-  sub: { fontFamily: font.ui, fontSize: 15, lineHeight: 22 },
+  title: { ...sf.uiSemi, fontSize: 28, lineHeight: 35, letterSpacing: -0.7 },
+  sub: { ...sf.ui, fontSize: 15, lineHeight: 22 },
   primary: { height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { fontFamily: font.uiSemi, fontSize: 16, letterSpacing: -0.2 },
+  primaryText: { ...sf.uiSemi, fontSize: 16, letterSpacing: -0.2 },
   secondaryRow: { flexDirection: 'row', justifyContent: 'center', gap: 28, marginTop: 12 },
   secondary: { height: 40, paddingHorizontal: 8, justifyContent: 'center' },
-  secondaryText: { fontFamily: font.uiMedium, fontSize: 14 },
-  input: { fontFamily: font.ui, fontSize: 17, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  secondaryText: { ...sf.uiMedium, fontSize: 14 },
+  input: { ...sf.ui, fontSize: 17, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   empty: { flex: 1, justifyContent: 'center', paddingHorizontal: 28 },
 });

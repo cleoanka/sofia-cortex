@@ -17,6 +17,7 @@ export function useField(id: NodeId, kind: FieldKind, source: string, commit: (t
   const [value, setValue] = useState(source);
   const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(undefined);
   const caret = useRef(source.length);
+  const sel = useRef({ start: source.length, end: source.length });
   const focused = useRef(false);
   const latest = useRef(source);
   const dirty = useRef(false);
@@ -106,9 +107,10 @@ export function useField(id: NodeId, kind: FieldKind, source: string, commit: (t
 
   const onSelectionChange = (e: { nativeEvent: { selection: { start: number; end: number } } }) => {
     caret.current = e.nativeEvent.selection.end;
+    sel.current = e.nativeEvent.selection;
     if (selection) setSelection(undefined);
     if (focused.current) reportQuery(latest.current, caret.current);
   };
 
-  return { ref, value, latest, flush, props: { ref, value, onChangeText, onFocus, onBlur, onSelectionChange, selection, onContentSizeChange: nudgeCaret } };
+  return { ref, value, latest, sel, flush, props: { ref, value, onChangeText, onFocus, onBlur, onSelectionChange, selection, onContentSizeChange: nudgeCaret } };
 }

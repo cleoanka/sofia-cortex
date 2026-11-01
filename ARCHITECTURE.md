@@ -28,12 +28,18 @@ The engine has **no React and no Expo imports**. It talks to storage through a f
 ```sql
 nodes(id PK, parent_id, sort REAL, title, body, is_task, done, done_at,
       pinned, pin_order, sealed, collapsed, steep_until,
-      reminder_at, reminder_hook, reminder_id, role, created_at, updated_at, deleted_at)
+      reminder_at, reminder_hook, reminder_id, role, fmt, created_at, updated_at, deleted_at)
 links(src, key, kind)            -- WITHOUT ROWID; key = normalised title or '#tag'
 nodes_fts USING fts5(title, body, content='nodes', tokenize='unicode61 remove_diacritics 2')
 meta(k, v)
 ```
 
+* **Formatting (`fmt`, JSON)** — whole-line Apple Notes styles: paragraph style (title / heading /
+  large / body / mono), typeface (SF, New York, SF Rounded, SF Mono via `ui-*` families), B I U S,
+  a highlighter colour, a list marker (bullet / number), and `bd` for the page's body block.
+  Formatting is allowed inside a locked plan. Old databases gain the column in place (`migrate`).
+* **Tables** — a node with `role = 'table'`; cells live as `{"rows":[[…]]}` in `body`
+  (`engine/table.ts`). Link renames rewrite cells, never the JSON. Exported as Markdown tables.
 * **Fractional `sort`** — inserts never rewrite siblings; renumbering happens only when a gap
   collapses below 1e-9.
 * **One link syntax: `&Başlık&`** — easy on a phone keyboard. If a note answers to the title it
@@ -132,16 +138,23 @@ Rules that keep it there:
 
 ## 5. Interface law
 
-Things 3 / Apple Notes / Bear: whitespace and typography do the framing. No uppercase meta
+Apple Notes (iOS 18) is the bar: system grouped colours (#F2F2F7 + white inset cards / black +
+#1C1C1E), San Francisco, a warm amber accent. Home groups notes by when anything inside them last
+changed (`touchedAt`): Sabitlenenler · Bugün · Önceki 7 Gün · Önceki 30 Gün · months; each row is
+a bold title (+ `0/4`) over time + preview; a frosted bottom bar holds search and compose.
+Whitespace and typography do the framing. No uppercase meta
 labels, no boxes in boxes, no invented words. Motion is `withTiming` 150–220 ms
 `Easing.out(cubic)` (`theme/motion.ts`) — no springs, no scale, no bounce.
 
 * **TopBar** — every screen has a sticky, blurred bar under the status bar; content scrolls
   beneath it, never over the clock.
 * **Node editor** — title, body and lines are edited in place (`useField`: local state, 350 ms
-  debounced commit coalesced into one undo step, flush on blur/unmount). The faint circle turns a
-  line into a task; Return makes the next line of the same kind; Return/Backspace on an empty
-  task turns it back into text. Tap on empty paper starts a new line.
+  debounced commit coalesced into one undo step, flush on blur/unmount). A plain line has **no
+  marker**; ☑ adds a checkbox, • / 1. a list marker. Return makes the next line of the same kind.
+  On an empty nested line Return — or Backspace at the start of any nested line — steps out one
+  level; at the top level they drop the checkbox / marker. The page shows three levels inline;
+  deeper lines open as pages (›). A highlighted line renders its text as a span inside the
+  `TextInput` so the marker sits behind the glyphs only. Tap on empty paper starts a new line.
 * **Keyboard** — no focused input may ever sit under the keyboard. `useKeyboardHeight()`
   (`ui/keyboard.tsx`) reads the real height from `keyboardWillShow/WillHide`. `KeyboardScrollView`
   (note page, Dış Göz) adds `keyboard + 100` of room and, on keyboard show and on every caret
@@ -149,11 +162,12 @@ labels, no boxes in boxes, no invented words. Motion is `withTiming` 150–220 m
   `TextInput.State.currentlyFocusedInput()` in window coordinates and scrolls it above
   `screen − keyboard − margin`. Autopilot's split inputs open directly under the task title; the
   reminder drawer sits on the keyboard and folds its time pickers away; search results end above
-  the keyboard. `KeyboardBar` (☑ Görev · ↳ Altına al · ↰ Üste çıkar · & Bağla ·
-  Bitti) rides on top of it and is tied to focus, so it also docks at the bottom with a hardware
+  the keyboard. `KeyboardBar` (horizontally scrollable Aa · ☑ · • · 1. · ⊞ · ↳ · ↰ · &, with a fixed Bitti;
+  Aa opens the formatting panel above it) rides on top of it and is tied to focus, so it also docks at the bottom with a hardware
   keyboard. iOS commits a pending autocorrection when the bar is tapped, so inserts are deferred
   one frame.
-* **Swipe** — left: red *Sil* (hard delete + undo toast); right: *Alt görev yap* (indent).
+* **Swipe** — right: *İçeri al* (indent). Left on a nested line: a short pull is *Dışarı al*
+  (outdent), a long pull is red *Sil*; on a top-level line left is *Sil* (hard delete + undo toast).
 * **Navigation** — a small custom stack: pages slide 28 pt and fade (200 ms); the reading view and
   Autopilot fade in place. Covered screens stay mounted but freeze their derived views
   (`SceneDepth` + `useVersion`). Deep links: `sofia://node/<title>`, `sofia://observer/<title>`,

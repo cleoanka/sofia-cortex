@@ -7,7 +7,7 @@ import { useEngine } from '../state/hooks';
 import { useNav } from '../state/nav';
 import { usePalette } from '../theme/ThemeProvider';
 import { fadeIn, fadeOut } from '../theme/motion';
-import { font } from '../theme/tokens';
+import { sf } from '../theme/tokens';
 import { Tap } from './primitives';
 
 /** A quiet status line with “Geri al”. Fades, never bounces. */
@@ -39,7 +39,7 @@ export function Toast() {
             hitSlop={8}
             accessibilityLabel="Geri al"
           >
-            <Text style={[styles.text, { color: c.invAccent, fontFamily: font.uiSemi, flex: 0 }]}>Geri al</Text>
+            <Text style={[styles.text, { color: c.invAccent, ...sf.uiSemi, flex: 0 }]}>Geri al</Text>
           </Tap>
         ) : null}
       </View>
@@ -50,5 +50,5 @@ export function Toast() {
 const styles = StyleSheet.create({
   wrap: { position: 'absolute', left: 20, right: 20, zIndex: 50 },
   bar: { flexDirection: 'row', alignItems: 'center', gap: 16, height: 44, borderRadius: 12, paddingHorizontal: 16, shadowOpacity: 1, shadowRadius: 16, shadowOffset: { width: 0, height: 6 } },
-  text: { fontFamily: font.ui, fontSize: 14, flex: 1 },
+  text: { ...sf.ui, fontSize: 14, flex: 1 },
 });

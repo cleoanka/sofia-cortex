@@ -6,12 +6,13 @@ import { ease } from '../theme/motion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CortexEngine } from '../engine/CortexEngine';
 import { titleKey } from '../engine/links';
+import { tableText } from '../engine/table';
 import type { NodeId } from '../engine/types';
 import { haptic } from '../platform/haptics';
 import { useEngine } from '../state/hooks';
 import { nav, useNav } from '../state/nav';
 import { usePalette, useTheme } from '../theme/ThemeProvider';
-import { font, radius, type } from '../theme/tokens';
+import { radius, type, sf } from '../theme/tokens';
 import { Icon, type IconName } from './Icon';
 import { guard } from './actions';
 import { useKeyboardHeight } from './keyboard';
@@ -43,7 +44,7 @@ function highlight(snippet: string, c: { text: string; accent: string; textDim: 
   const parts = snippet.split(/(\u0001[^\u0002]*\u0002)/);
   return parts.map((p, i) =>
     p.startsWith('\u0001') ? (
-      <Text key={i} style={{ color: c.accent, fontFamily: font.uiSemi }}>
+      <Text key={i} style={{ color: c.accent, ...sf.uiSemi }}>
         {p.slice(1, -1)}
       </Text>
     ) : (
@@ -220,6 +221,10 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
           .slice(0, -1)
           .map((p) => p.title)
           .join(' › ') || 'Ana sayfa';
+      if (n?.role === 'table') {
+        out.push({ key: h.id, icon: 'note', title: 'Tablo', sub: `${path} · ${tableText(n.body)}`, run: go(n.parentId ?? h.id) });
+        continue;
+      }
       out.push({ key: h.id, icon: n?.isTask ? 'task' : 'note', title: h.title || 'Adsız', sub: plain.trim() === h.title.trim() ? path : snip, run: go(h.id) });
     }
     // `&etiket&` — every note that carries it, even when no note has that name.

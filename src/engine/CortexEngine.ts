@@ -1,6 +1,7 @@
+import { mapCells, parseTable, serializeTable } from './table';
 import { ANCESTORS_CTE, SUBTREE_CTE, UPSERT_SQL, migrate, nodeParams, rowToNode, type NodeRow } from './schema';
 import { extractLinks, migrateLegacySyntax, renameRefs, snippetAround, titleKey, unlinkRefs } from './links';
-import type { Backlink, CortexNode, LinkKind, NodeId, Progress, SearchHit, SqlDriver } from './types';
+import type { Backlink, CortexNode, Fmt, LinkKind, NodeId, Progress, SearchHit, SqlDriver } from './types';
 
 type Listener = () => void;
 type GlobalListener = (changed: ReadonlySet<NodeId>) => void;
@@ -19,6 +20,16 @@ export interface CreateInput {
   /** Insert at this sibling index; defaults to the end. */
   index?: number;
   role?: CortexNode['role'];
+  fmt?: Fmt | null;
+}
+
+/** A formatting change; `null`/`undefined`/`false` clears a key. */
+export type FmtPatch = { [K in keyof Fmt]?: Fmt[K] | null };
+
+/** Drop cleared keys; an empty object becomes undefined. */
+function compact<T extends object>(o: { [K in keyof T]?: T[K] | null }): T | undefined {
+  const out = Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== false)) as T;
+  return Object.keys(out).length ? out : undefined;
 }
 
 export interface ToggleResult {
@@ -350,7 +361,7 @@ export class CortexEngine {
    */
   isDraft(id: NodeId): boolean {
     const n = this.nodes.get(id);
-    return !!n && n.isTask && !n.title.trim() && !n.body.trim() && (this.kids.get(id) ?? EMPTY).every((c) => this.isDraft(c));
+    return !!n && n.isTask && n.role !== 'table' && !n.title.trim() && !n.body.trim() && (this.kids.get(id) ?? EMPTY).every((c) => this.isDraft(c));
   }
 
   /** A task that counts: real tasks, never drafts. */
@@ -368,6 +379,19 @@ export class CortexEngine {
       if (n.done) done++;
     }
     return { done, total };
+  }
+
+  /** When anything in this subtree last changed — what “edited” means for a note. */
+  touchedAt(id: NodeId): number {
+    let t = this.nodes.get(id)?.updatedAt ?? 0;
+    const stack = [...(this.kids.get(id) ?? EMPTY)];
+    while (stack.length) {
+      const c = stack.pop()!;
+      t = Math.max(t, this.nodes.get(c)!.updatedAt);
+      const k = this.kids.get(c);
+      if (k) stack.push(...k);
+    }
+    return t;
   }
 
   /** Deep progress across the whole subtree (leaf tasks only). */
@@ -669,6 +693,7 @@ export class CortexEngine {
         reminderHook: null,
         reminderId: null,
         role: input.role ?? null,
+        fmt: input.fmt && Object.keys(input.fmt).length ? input.fmt : null,
         createdAt: t,
         updatedAt: t,
         deletedAt: null,
@@ -697,7 +722,8 @@ export class CortexEngine {
             for (const src of [...(this.inLinks.get(oldKey) ?? [])]) {
               if (src === id) continue;
               const s = this.nodes.get(src)!;
-              const body = renameRefs(s.body, n.title, patch.title.trim());
+              const rename = (x: string) => renameRefs(x, n.title, patch.title!.trim());
+              const body = s.role === 'table' ? mapCells(s.body, rename) : rename(s.body);
               if (body !== s.body) this.put({ ...s, body, updatedAt: this.clock() });
             }
           }
@@ -721,6 +747,27 @@ export class CortexEngine {
       this.put({ ...n, isTask, done, doneAt: done ? (n.doneAt ?? this.clock()) : null, updatedAt: this.clock() });
       this.propagate(n.parentId);
     });
+  }
+
+  /**
+   * Formatting is how a line reads, not what the plan is — so it is allowed
+   * inside a locked plan. `target: 'body'` formats the page's body block.
+   * A key set to `undefined` (or `null`) returns to the default.
+   */
+  setFmt(id: NodeId, patch: FmtPatch | null, target: 'line' | 'body' = 'line'): void {
+    this.transact('Biçim', () => {
+      const n = this.must(id);
+      const cur: Fmt = { ...(n.fmt ?? {}) };
+      let next: Fmt | undefined;
+      if (target === 'body') next = compact({ ...cur, bd: patch === null ? undefined : compact({ ...(cur.bd ?? {}), ...patch }) });
+      else next = compact(patch === null ? { bd: cur.bd } : { ...cur, ...patch });
+      this.put({ ...n, fmt: next ?? null, updatedAt: this.clock() });
+    });
+  }
+
+  /** A 2×2 table right after `index` (or at the end). */
+  createTable(parentId: NodeId, index?: number): NodeId {
+    return this.create(parentId, { role: 'table', body: serializeTable(parseTable('')), index });
   }
 
   /**
@@ -790,6 +837,7 @@ export class CortexEngine {
     const i = sib.indexOf(id);
     if (i <= 0) return false;
     const target = sib[i - 1];
+    if (this.nodes.get(target)!.role === 'table') return false; // a table holds cells, not lines
     this.transact('İçeri al', () => {
       this.move(id, target);
       const t = this.nodes.get(target)!;
@@ -832,7 +880,7 @@ export class CortexEngine {
         for (const src of [...(this.inLinks.get(key) ?? [])]) {
           if (gone.has(src)) continue;
           const s = this.nodes.get(src)!;
-          const body = unlinkRefs(s.body, t);
+          const body = s.role === 'table' ? mapCells(s.body, (x) => unlinkRefs(x, t)) : unlinkRefs(s.body, t);
           if (body !== s.body) this.put({ ...s, body, updatedAt: this.clock() });
         }
       }
@@ -1062,7 +1110,8 @@ export class CortexEngine {
           reminderAt: null,
           reminderHook: raw.reminderHook ?? null,
           reminderId: null,
-          role: raw.role === 'inbox' ? 'inbox' : null,
+          role: raw.role === 'inbox' || raw.role === 'table' ? raw.role : null,
+          fmt: raw.fmt && typeof raw.fmt === 'object' ? raw.fmt : null,
           createdAt: raw.createdAt ?? t,
           updatedAt: raw.updatedAt ?? t,
           deletedAt: null,
@@ -1096,6 +1145,9 @@ function sameKeys(a: Map<NodeId, unknown>, b: Map<NodeId, unknown>): boolean {
 function sameNode(a: CortexNode | undefined, b: CortexNode | undefined): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
-  for (const k in a) if (k !== 'updatedAt' && (a as never)[k] !== (b as never)[k]) return false;
+  for (const k in a) {
+    if (k === 'updatedAt') continue;
+    if (k === 'fmt' ? JSON.stringify(a.fmt) !== JSON.stringify(b.fmt) : (a as never)[k] !== (b as never)[k]) return false;
+  }
   return true;
 }

@@ -5,30 +5,37 @@ import type { CortexEngine } from '../engine/CortexEngine';
 import type { CortexNode, NodeId } from '../engine/types';
 import { getEngine } from '../platform/db';
 import { haptic } from '../platform/haptics';
-import { editor } from '../state/editor';
+import { editor, useEditor } from '../state/editor';
+import { useSceneDepth } from '../state/scene';
 import { useEngine, useNode, useVersion } from '../state/hooks';
 import { nav } from '../state/nav';
 import { useSheet } from '../state/sheet';
 import { usePalette } from '../theme/ThemeProvider';
 import { fadeIn, fadeOut } from '../theme/motion';
-import { font, type } from '../theme/tokens';
-import { appendLine, deleteNode, guard, toggleTask } from '../ui/actions';
+import { type, sf } from '../theme/tokens';
+import { MAX_DEPTH, appendLine, deleteNode, guard, toggleTask } from '../ui/actions';
 import { Icon, type IconName } from '../ui/Icon';
-import { KeyboardBar } from '../ui/KeyboardBar';
+import { BAR_H, KeyboardBar, PANEL_H } from '../ui/KeyboardBar';
+import { fmtStyle, markerOf } from '../ui/format';
+import { TableBlock } from '../ui/TableBlock';
 import { KeyboardScrollView } from '../ui/keyboard';
 import { BackButton, Check, Hairline, IconButton, Surface, Tap, TopBar, useBarInset } from '../ui/primitives';
 import { followRef } from '../ui/richText';
 import { LineRow } from '../ui/Rows';
 import { useField } from '../ui/useField';
 
-type Line = { id: NodeId; depth: number };
+type Line = { id: NodeId; depth: number; num?: number };
 
+/** The page as an outline. Numbered lists count consecutive siblings, like Apple Notes. */
 function flatten(e: CortexEngine, rootId: NodeId, maxDepth: number): Line[] {
   const out: Line[] = [];
   const walk = (pid: NodeId, depth: number) => {
+    let num = 0;
     for (const id of e.children(pid)) {
-      out.push({ id, depth });
-      if (depth < maxDepth && !e.get(id)!.collapsed) walk(id, depth + 1);
+      const n = e.get(id)!;
+      num = n.fmt?.l === 'number' ? num + 1 : 0;
+      out.push({ id, depth, num: num || undefined });
+      if (depth < maxDepth && !n.collapsed) walk(id, depth + 1);
     }
   };
   walk(rootId, 0);
@@ -42,12 +49,19 @@ export function NodeScreen({ id }: { id: NodeId }) {
   const v = useVersion();
   const top = useBarInset();
   const [menu, setMenu] = useState(false);
-  const lines = useMemo(() => (n ? flatten(e, id, 1) : []), [e, id, v, !!n]);
+  const lines = useMemo(() => (n ? flatten(e, id, MAX_DEPTH) : []), [e, id, v, !!n]);
+  const panel = useEditor((s) => s.panel);
+  const depth = useSceneDepth();
   const locked = useMemo(() => (n ? e.isLocked(id) : false), [e, id, v]);
 
   useEffect(() => {
     editor().setOrder(lines.map((l) => l.id));
   }, [lines]);
+
+  // The page on top owns the editor: its direct lines cannot be outdented off it.
+  useEffect(() => {
+    if (depth === 0) editor().setPage(id);
+  }, [depth, id]);
 
   // A note left completely empty disappears quietly, like Apple Notes.
   useEffect(
@@ -74,10 +88,10 @@ export function NodeScreen({ id }: { id: NodeId }) {
   const taskish = n.isTask || (kids.length > 0 && kids.filter((k) => e.get(k)?.isTask).length * 2 >= kids.length);
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.bg }}>
-      {/* The keyboard bar (46) rides on the keyboard; keep the caret clear of both. */}
+    <View style={{ flex: 1, backgroundColor: c.paper }}>
+      {/* The keyboard bar (and the Aa panel when open) ride on the keyboard; keep the caret clear of them. */}
       <KeyboardScrollView
-        margin={46 + 90}
+        margin={BAR_H + (panel ? PANEL_H : 0) + 90}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}
@@ -93,16 +107,21 @@ export function NodeScreen({ id }: { id: NodeId }) {
         <BodyField node={n} />
         <Links node={n} />
         <View style={{ height: 6 }} />
-        {lines.map((l) => (
-          <LineRow key={l.id} id={l.id} depth={l.depth} locked={locked} />
-        ))}
+        {lines.map((l) =>
+          e.get(l.id)?.role === 'table' ? (
+            <TableBlock key={l.id} id={l.id} depth={l.depth} locked={locked} />
+          ) : (
+            <LineRow key={l.id} id={l.id} depth={l.depth} locked={locked} num={l.num} />
+          ),
+        )}
         {/* Empty paper: a tap here starts a new line. */}
         <Pressable onPress={() => !locked && appendLine(id, taskish)} style={{ minHeight: 180 }} accessibilityLabel="Yeni satır" />
         <Backlinks node={n} />
       </KeyboardScrollView>
 
       <TopBar
-        left={<BackButton onPress={() => nav().pop()} />}
+        tint={c.paper}
+        left={<BackButton label="Notlar" onPress={() => nav().pop()} />}
         right={
           <>
             {e.nextActions(id, 1).length > 0 ? (
@@ -124,7 +143,7 @@ function BarPill({ label, onPress }: { label: string; onPress: () => void }) {
   const c = usePalette();
   return (
     <Tap onPress={onPress} hitSlop={4} style={[styles.pill, { backgroundColor: c.surface }]} accessibilityLabel={label}>
-      <Text style={[type.small, { color: c.text, fontFamily: font.uiMedium }]}>{label}</Text>
+      <Text style={[type.small, { color: c.text, ...sf.uiMedium }]}>{label}</Text>
     </Tap>
   );
 }
@@ -170,16 +189,22 @@ function BodyField({ node }: { node: CortexNode }) {
     const cur = e.get(node.id);
     if (cur && cur.body !== t) e.update(node.id, { body: t });
   });
+  const look = fmtStyle(node.fmt?.bd, c);
+  const marker = markerOf(node.fmt?.bd, c);
+  const { value, ...props } = f.props;
   return (
     <TextInput
-      {...f.props}
+      {...props}
+      value={marker ? undefined : value}
       multiline
       scrollEnabled={false}
       placeholder="Not"
       placeholderTextColor={c.textFaint}
       selectionColor={c.accent}
-      style={[type.body, styles.body, { color: c.text }]}
-    />
+      style={[type.body, look, { lineHeight: Math.max(24, look.lineHeight ?? 24) }, styles.body, { color: c.text }]}
+    >
+      {marker ? <Text style={{ backgroundColor: marker }}>{value}</Text> : null}
+    </TextInput>
   );
 }
 
@@ -198,7 +223,7 @@ function Links({ node }: { node: CortexNode }) {
           onPress={() => (o.target ? (haptic.soft(), nav().push({ name: 'node', id: o.target.id })) : followRef(o.key))}
           style={[styles.link, { backgroundColor: o.target ? c.accentSoft : c.surface }]}
         >
-          <Text style={[type.small, { color: o.target ? c.link : c.textDim, fontFamily: font.uiMedium }]}>{o.target ? o.target.title : `&${o.key}`}</Text>
+          <Text style={[type.small, { color: o.target ? c.link : c.textDim, ...sf.uiMedium }]}>{o.target ? o.target.title : `&${o.key}`}</Text>
         </Tap>
       ))}
     </View>

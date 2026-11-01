@@ -1,4 +1,3 @@
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import {
   Newsreader_300Light_Italic,
   Newsreader_400Regular,
@@ -86,10 +85,6 @@ function Root() {
 
 export default function App() {
   const [loaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
     Newsreader_300Light_Italic,
     Newsreader_400Regular,
     Newsreader_400Regular_Italic,

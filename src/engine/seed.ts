@@ -1,5 +1,6 @@
 import type { CortexEngine } from './CortexEngine';
-import type { NodeId } from './types';
+import { serializeTable, type Cells } from './table';
+import type { Fmt, NodeId } from './types';
 
 type Spec = {
   t: string;
@@ -10,6 +11,8 @@ type Spec = {
   seal?: boolean;
   collapsed?: boolean;
   role?: 'inbox';
+  fmt?: Fmt;
+  table?: Cells;
   c?: Spec[];
 };
 
@@ -20,13 +23,18 @@ type Spec = {
 const VAULT: Spec[] = [
   {
     t: 'Hoş geldin',
-    b: 'Sofia’da her şey bir not. Bir satırın solundaki daireye dokununca görev olur; içine girdiğin her not kendi sayfasıdır. Aşağıdakileri dene — hepsi gerçek görev.',
+    b: 'Sofia’da her şey bir not. Klavyenin üstündeki ☑ bir satırı göreve çevirir, Aa biçimlendirir; içine girdiğin her not kendi sayfasıdır.',
     c: [
-      { t: 'Sağ alttaki ＋ ile yeni bir not aç', task: true },
-      { t: 'Bir satırı sola kaydır: sil', task: true },
-      { t: 'Bir satırı sağa kaydır: üstündekinin altına al', task: true },
+      { t: 'Dene', fmt: { s: 'heading' } },
+      { t: 'Sağ alttaki kalemle yeni bir not aç', task: true },
+      { t: 'Bir satırı sağa kaydır: içeri al', task: true },
       { t: 'Bir notta Dış Göz’e dokun', task: true },
       { t: 'Ana sayfada “Sıradaki”ye dokun', task: true },
+      { t: 'Kısayollar', fmt: { s: 'heading' } },
+      { t: 'Boş satırda Return: bir üst seviyeye çık', fmt: { l: 'bullet' } },
+      { t: 'Sola kısa kaydır: dışarı al, uzun kaydır: sil', fmt: { l: 'bullet' } },
+      { t: 'Aa: başlık, yazı tipi, kalın, vurgu kalemi', fmt: { l: 'bullet', h: 'yellow' } },
+      { t: '⊞: tablo', fmt: { l: 'bullet' } },
     ],
   },
   {
@@ -91,6 +99,15 @@ const VAULT: Spec[] = [
           { t: 'Anlatım bozuklukları tekrarı', task: true },
         ],
       },
+      {
+        t: '',
+        table: [
+          ['Sınav', 'Tarih'],
+          ['Matematik', '12 Haziran'],
+          ['Fizik', '15 Haziran'],
+          ['Türkçe', '18 Haziran'],
+        ],
+      },
       { t: 'Formül kartları', b: 'v = dx/dt\na = dv/dt\nF = m·a\n\nKart başına tek formül, arkasına bir örnek. &Fizik& &Matematik&' },
     ],
   },
@@ -107,7 +124,11 @@ const VAULT: Spec[] = [
   {
     t: 'Çalışma ritmi',
     b: 'Aynı anda tek iş. Takılırsam ikiye bölerim: büyük görünen her şey iki küçük adımın kılık değiştirmiş hâli. &odak&',
-    c: [{ t: 'Sabah: telefonsuz ilk 30 dakika' }, { t: 'Öğle: yürüyüş, sonra tek iş' }],
+    c: [
+      { t: 'Sabah: telefonsuz ilk 30 dakika', fmt: { l: 'number' } },
+      { t: 'Öğle: yürüyüş, sonra tek iş', fmt: { l: 'number' } },
+      { t: 'Akşam: yarının tek işini yaz', fmt: { l: 'number' } },
+    ],
   },
 ];
 
@@ -120,7 +141,15 @@ export function seedShowcase(e: CortexEngine): void {
       for (const s of specs) {
         // Never two inboxes: re-seeding pours into the existing one.
         const existingInbox = s.role === 'inbox' ? e.inbox() : undefined;
-        const id = existingInbox?.id ?? e.create(parent, { title: s.t, body: s.b ?? '', isTask: !!s.task, role: s.role ?? null }, { force: true });
+        const id =
+          existingInbox?.id ??
+          e.create(
+            parent,
+            s.table
+              ? { role: 'table', body: serializeTable(s.table) }
+              : { title: s.t, body: s.b ?? '', isTask: !!s.task, role: s.role ?? null, fmt: s.fmt ?? null },
+            { force: true },
+          );
         if (s.done) doneLater.push(id);
         if (s.pin) pinLater.push(id);
         if (s.seal) sealLater.push(id);

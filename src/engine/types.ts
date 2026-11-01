@@ -8,7 +8,30 @@
 
 export type NodeId = string;
 
-export type NodeRole = 'inbox' | null;
+export type NodeRole = 'inbox' | 'table' | null;
+
+/** Paragraph style of a line (Apple Notes “Aa”). */
+export type TextStyle = 'title' | 'heading' | 'large' | 'body' | 'mono';
+export type FontFace = 'sans' | 'serif' | 'rounded' | 'mono';
+export type Highlight = 'yellow' | 'green' | 'blue' | 'pink';
+export type ListKind = 'bullet' | 'number';
+
+/** Whole-line formatting. Absent keys mean “default”. */
+export interface LineFmt {
+  s?: TextStyle;
+  f?: FontFace;
+  b?: boolean;
+  i?: boolean;
+  u?: boolean;
+  x?: boolean;
+  h?: Highlight;
+}
+
+/** A node's formatting: how its title reads as a line, its list marker, and its body block. */
+export interface Fmt extends LineFmt {
+  l?: ListKind;
+  bd?: LineFmt;
+}
 
 export interface CortexNode {
   id: NodeId;
@@ -40,6 +63,8 @@ export interface CortexNode {
   reminderId: string | null;
 
   role: NodeRole;
+  /** Formatting; null = plain. A `table` node keeps its cells as JSON in `body`. */
+  fmt: Fmt | null;
   createdAt: number;
   updatedAt: number;
   /** Soft delete (trash). Set on the deleted subtree root and every descendant. */

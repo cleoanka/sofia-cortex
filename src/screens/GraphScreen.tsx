@@ -14,7 +14,7 @@ import { haptic } from '../platform/haptics';
 import { useEngine, useVersion } from '../state/hooks';
 import { nav } from '../state/nav';
 import { usePalette } from '../theme/ThemeProvider';
-import { font, radius, type, type Palette } from '../theme/tokens';
+import { radius, type, type Palette, sf } from '../theme/tokens';
 import { BackButton, ProgressRing, Surface, Tap, TopBar } from '../ui/primitives';
 
 type Kind = 0 | 1 | 2 | 3 | 4; // note, active task, done task, tag, blocked (sealed/has open subtasks)
@@ -66,7 +66,7 @@ function buildModel(e: CortexEngine, focus: NodeId | null, filters: Filters): Mo
     const id = g.ids[old];
     kinds[i] = kinds0[old];
     radii[i] = kinds[i] === 3 ? 3.4 : 3.6 + Math.min(9, Math.sqrt(degree[i]) * 1.9);
-    labels.push(id.startsWith('#') ? id.slice(1) : e.get(id)?.title || 'Adsız');
+    labels.push(id.startsWith('#') ? id.slice(1) : e.get(id)?.role === 'table' ? 'Tablo' : e.get(id)?.title || 'Adsız');
   });
   const order = [...labels.keys()].sort((a, b) => degree[b] - degree[a] || radii[b] - radii[a]);
   const text = labels.map((l) => {
@@ -449,10 +449,10 @@ function NodePreview({ id, onFocus }: { id: NodeId; onFocus: () => void }) {
       </View>
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
         <Tap onPress={() => (haptic.soft(), nav().push({ name: 'node', id }))} style={[styles.action, { backgroundColor: c.accent }]}>
-          <Text style={[type.small, { fontFamily: font.uiSemi, color: c.card }]}>Notu aç</Text>
+          <Text style={[type.small, { ...sf.uiSemi, color: c.card }]}>Notu aç</Text>
         </Tap>
         <Tap onPress={() => (haptic.select(), onFocus())} style={[styles.action, { backgroundColor: c.surface }]}>
-          <Text style={[type.small, { fontFamily: font.uiSemi, color: c.text }]}>Merkeze al</Text>
+          <Text style={[type.small, { ...sf.uiSemi, color: c.text }]}>Merkeze al</Text>
         </Tap>
       </View>
     </View>
@@ -463,7 +463,7 @@ function Seg({ label, active, onPress }: { label: string; active: boolean; onPre
   const c = usePalette();
   return (
     <Tap onPress={onPress} style={[styles.seg, active && { backgroundColor: c.card }]}>
-      <Text style={[type.small, { fontFamily: font.uiMedium, color: active ? c.text : c.textDim }]}>{label}</Text>
+      <Text style={[type.small, { ...sf.uiMedium, color: active ? c.text : c.textDim }]}>{label}</Text>
     </Tap>
   );
 }

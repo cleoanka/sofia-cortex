@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { NodeId } from '../engine/types';
 
-export type FieldKind = 'title' | 'body' | 'line' | 'action';
+export type FieldKind = 'title' | 'body' | 'line' | 'cell' | 'action';
 
 export interface FocusedField {
   kind: FieldKind;
@@ -21,6 +21,12 @@ interface EditorState {
   pending: { id: NodeId; kind: FieldKind } | null;
   /** Visible line order on the current page — for "focus previous line". */
   order: NodeId[];
+  /** The page being edited: lines directly under it cannot be outdented further. */
+  page: NodeId | null;
+  /** The “Aa” formatting panel above the keyboard. */
+  panel: boolean;
+  setPage: (id: NodeId | null) => void;
+  setPanel: (open: boolean) => void;
   setFocused: (f: FocusedField | null) => void;
   setLinkQuery: (q: string | null) => void;
   requestFocus: (id: NodeId, kind?: FieldKind) => void;
@@ -33,7 +39,11 @@ export const useEditor = create<EditorState>((set, get) => ({
   linkQuery: null,
   pending: null,
   order: [],
-  setFocused: (focused) => set(focused ? { focused } : { focused: null, linkQuery: null }),
+  page: null,
+  panel: false,
+  setPage: (page) => set({ page }),
+  setPanel: (panel) => set({ panel }),
+  setFocused: (focused) => set(focused ? { focused } : { focused: null, linkQuery: null, panel: false }),
   setLinkQuery: (linkQuery) => set({ linkQuery }),
   requestFocus: (id, kind = 'line') => set({ pending: { id, kind } }),
   takePending: (id, kind) => {

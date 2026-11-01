@@ -1,4 +1,4 @@
-import type { CortexNode, SqlDriver } from './types';
+import type { CortexNode, Fmt, SqlDriver } from './types';
 
 export const SCHEMA_VERSION = 1;
 
@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS nodes (
   reminder_hook TEXT,
   reminder_id   TEXT,
   role          TEXT,
+  fmt           TEXT,
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL,
   deleted_at    INTEGER
@@ -101,6 +102,7 @@ export interface NodeRow {
   reminder_hook: string | null;
   reminder_id: string | null;
   role: string | null;
+  fmt: string | null;
   created_at: number;
   updated_at: number;
   deleted_at: number | null;
@@ -124,35 +126,48 @@ export function rowToNode(r: NodeRow): CortexNode {
     reminderAt: r.reminder_at,
     reminderHook: r.reminder_hook,
     reminderId: r.reminder_id,
-    role: r.role === 'inbox' ? 'inbox' : null,
+    role: r.role === 'inbox' || r.role === 'table' ? r.role : null,
+    fmt: parseFmt(r.fmt),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     deletedAt: r.deleted_at,
   };
 }
 
+export function parseFmt(raw: string | null | undefined): Fmt | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw);
+    return v && typeof v === 'object' && Object.keys(v).length ? (v as Fmt) : null;
+  } catch {
+    return null;
+  }
+}
+
 export const UPSERT_SQL = `
 INSERT INTO nodes (id, parent_id, sort, title, body, is_task, done, done_at, pinned, pin_order,
-  sealed, collapsed, steep_until, reminder_at, reminder_hook, reminder_id, role, created_at, updated_at, deleted_at)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  sealed, collapsed, steep_until, reminder_at, reminder_hook, reminder_id, role, fmt, created_at, updated_at, deleted_at)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(id) DO UPDATE SET
   parent_id=excluded.parent_id, sort=excluded.sort, title=excluded.title, body=excluded.body,
   is_task=excluded.is_task, done=excluded.done, done_at=excluded.done_at, pinned=excluded.pinned,
   pin_order=excluded.pin_order, sealed=excluded.sealed, collapsed=excluded.collapsed,
   steep_until=excluded.steep_until, reminder_at=excluded.reminder_at, reminder_hook=excluded.reminder_hook,
-  reminder_id=excluded.reminder_id, role=excluded.role, updated_at=excluded.updated_at,
+  reminder_id=excluded.reminder_id, role=excluded.role, fmt=excluded.fmt, updated_at=excluded.updated_at,
   deleted_at=excluded.deleted_at`;
 
 export function nodeParams(n: CortexNode): unknown[] {
   return [
     n.id, n.parentId, n.sort, n.title, n.body, n.isTask ? 1 : 0, n.done ? 1 : 0, n.doneAt,
     n.pinned ? 1 : 0, n.pinOrder, n.sealed ? 1 : 0, n.collapsed ? 1 : 0, n.steepUntil,
-    n.reminderAt, n.reminderHook, n.reminderId, n.role, n.createdAt, n.updatedAt, n.deletedAt,
+    n.reminderAt, n.reminderHook, n.reminderId, n.role, n.fmt && Object.keys(n.fmt).length ? JSON.stringify(n.fmt) : null, n.createdAt, n.updatedAt, n.deletedAt,
   ];
 }
 
 export function migrate(db: SqlDriver): void {
   db.exec(PRAGMAS_SQL);
   db.exec(SCHEMA_SQL);
+  // v2: line formatting. Older databases gain the column in place.
+  if (!db.all<{ name: string }>('PRAGMA table_info(nodes)').some((c) => c.name === 'fmt')) db.exec('ALTER TABLE nodes ADD COLUMN fmt TEXT');
   db.run(`INSERT OR IGNORE INTO meta(k, v) VALUES ('schema', ?)`, [String(SCHEMA_VERSION)]);
 }

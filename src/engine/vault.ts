@@ -1,3 +1,4 @@
+import { tableMarkdown } from './table';
 import type { CortexEngine } from './CortexEngine';
 import type { CortexNode } from './types';
 
@@ -28,7 +29,10 @@ export function toMarkdownTree(e: CortexEngine): Record<string, string> {
     const kids = e.children(n.id).map((k) => e.get(k)!);
     if (kids.length) {
       lines.push('## İçindekiler', '');
-      for (const k of kids) lines.push(`${k.isTask ? `- [${k.done ? 'x' : ' '}]` : '-'} [[${k.title || 'Adsız'}]]`);
+      for (const k of kids) {
+        if (k.role === 'table') lines.push('', tableMarkdown(k.body), '');
+        else lines.push(`${k.isTask ? `- [${k.done ? 'x' : ' '}]` : '-'} [[${k.title || 'Adsız'}]]`);
+      }
       lines.push('');
     }
     return lines.join('\n');
@@ -36,6 +40,7 @@ export function toMarkdownTree(e: CortexEngine): Record<string, string> {
   const walk = (parentId: string | null, dir: string) => {
     for (const id of e.children(parentId)) {
       const n = e.get(id)!;
+      if (n.role === 'table') continue; // tables live inline in their parent's file
       const name = safe(n.title);
       if (e.hasChildren(id)) {
         const folder = unique(`${dir}${name}`);
