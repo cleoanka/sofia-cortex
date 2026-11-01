@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import Animated from 'react-native-reanimated';
 import { titleKey } from '../engine/links';
 import type { NodeId } from '../engine/types';
@@ -11,6 +10,7 @@ import { usePalette } from '../theme/ThemeProvider';
 import { fadeIn, layout } from '../theme/motion';
 import { font } from '../theme/tokens';
 import { toggleTask } from '../ui/actions';
+import { KeyboardScrollView, nudgeCaret } from '../ui/keyboard';
 import { BackButton, Check, TopBar, useBarInset } from '../ui/primitives';
 
 /**
@@ -26,9 +26,12 @@ export function ObserverScreen({ id }: { id: NodeId }) {
   const top = useBarInset();
   const [draft, setDraft] = useState('');
   if (!n) return null;
-  const steps = kids.map((k) => e.get(k)!).filter((k) => k.isTask);
+  const steps = kids.map((k) => e.get(k)!).filter((k) => k.isTask && !e.isDraft(k.id));
   // Links read as plain words; bare tags are bookkeeping, not prose — they drop out.
-  const body = n.body.replace(/&([^&\n]{1,80}?)&/g, (_m, t: string) => (e.resolve(titleKey(t)) ? t.trim() : '')).replace(/[ \t]+$/gm, '').trim();
+  const body = n.body
+    .replace(/&([^&\n]{1,80}?)&/g, (_m, t: string) => (e.resolve(titleKey(t)) ? t.trim() : ''))
+    .replace(/[ \t]+$/gm, '')
+    .trim();
 
   const add = () => {
     const t = draft.trim();
@@ -36,11 +39,18 @@ export function ObserverScreen({ id }: { id: NodeId }) {
     e.addProtocol(id, [t]);
     haptic.tick();
     setDraft('');
+    // The new step pushes the input down; follow it.
+    setTimeout(nudgeCaret, 220);
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: c.obsPaper }}>
-      <KeyboardAwareScrollView bottomOffset={80} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={{ paddingTop: top + 18, paddingBottom: 80, paddingHorizontal: 28 }}>
+      <KeyboardScrollView
+        margin={90}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        contentContainerStyle={{ paddingTop: top + 18, paddingBottom: 80, paddingHorizontal: 28 }}
+      >
         <Text style={[styles.title, { color: c.obsInk }]}>{n.title || 'Adsız not'}</Text>
         {body ? (
           body.split(/\n{2,}/).map((para, i) => (
@@ -67,9 +77,10 @@ export function ObserverScreen({ id }: { id: NodeId }) {
             <TextInput
               value={draft}
               onChangeText={setDraft}
+              onFocus={() => setTimeout(nudgeCaret, 60)}
               onSubmitEditing={add}
               submitBehavior="submit"
-              returnKeyType="done"
+              returnKeyType="next"
               placeholder="Eylem adımı ekle"
               placeholderTextColor={c.obsInkDim}
               selectionColor={c.accent}
@@ -77,7 +88,7 @@ export function ObserverScreen({ id }: { id: NodeId }) {
             />
           </View>
         </View>
-      </KeyboardAwareScrollView>
+      </KeyboardScrollView>
       <TopBar tint={c.obsPaper} left={<BackButton label="Nota dön" onPress={() => nav().pop()} />} />
     </View>
   );

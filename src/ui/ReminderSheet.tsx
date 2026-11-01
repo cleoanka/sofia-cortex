@@ -11,6 +11,7 @@ import { usePalette } from '../theme/ThemeProvider';
 import { ease } from '../theme/motion';
 import { font, type } from '../theme/tokens';
 import { Icon } from './Icon';
+import { useKeyboardHeight } from './keyboard';
 import { Hairline, Tap } from './primitives';
 
 const at = (d: Date, h: number, m = 0) => {
@@ -53,6 +54,9 @@ function BodyFor({ id }: { id: string }) {
   const c = usePalette();
   const n = useNode(id)!;
   const insets = useSafeAreaInsets();
+  const kb = useKeyboardHeight();
+  // While typing the first move, the drawer sits on the keyboard and folds the time pickers away.
+  const typing = kb > 0;
   const opts = useMemo(() => presets(), []);
   const [t, setT] = useState<number>(n.reminderAt && n.reminderAt > Date.now() ? n.reminderAt : opts[opts.length - 1].t);
   const [hook, setHook] = useState(!!n.reminderHook);
@@ -74,40 +78,53 @@ function BodyFor({ id }: { id: string }) {
   };
   return (
     <>
-      <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(150)} style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim, zIndex: 60 }]}>
+      <Animated.View
+        entering={FadeIn.duration(150)}
+        exiting={FadeOut.duration(150)}
+        style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim, zIndex: 60 }]}
+      >
         <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Kapat" />
       </Animated.View>
       <Animated.View
         entering={SlideInDown.duration(220).easing(ease)}
         exiting={SlideOutDown.duration(180).easing(ease)}
-        style={[styles.sheet, { backgroundColor: c.card, paddingBottom: insets.bottom + 16 }]}
+        style={[styles.sheet, { backgroundColor: c.card, bottom: kb, paddingBottom: typing ? 16 : insets.bottom + 16 }]}
       >
         <Text style={[type.barTitle, { color: c.text }]}>Hatırlatıcı</Text>
         <Text numberOfLines={1} style={[type.small, { color: c.textDim, marginTop: 2 }]}>
           {n.title || 'Adsız not'}
         </Text>
 
-        <View style={{ marginTop: 16 }}>
-          {opts.map((o, i) => (
-            <View key={o.key}>
-              {i > 0 ? <Hairline /> : null}
-              <Tap onPress={() => (haptic.select(), setT(o.t))} style={styles.opt}>
-                <Text style={[type.row, { color: c.text, flex: 1 }]}>{o.label}</Text>
-                {Math.abs(o.t - t) < 60_000 ? <Icon name="check" size={18} color={c.accent} weight={2} /> : null}
+        {typing ? (
+          <Text style={[type.small, { color: c.text, marginTop: 12, fontFamily: font.uiMedium }]}>{fmt(t)}</Text>
+        ) : (
+          <>
+            <View style={{ marginTop: 16 }}>
+              {opts.map((o, i) => (
+                <View key={o.key}>
+                  {i > 0 ? <Hairline /> : null}
+                  <Tap onPress={() => (haptic.select(), setT(o.t))} style={styles.opt}>
+                    <Text style={[type.row, { color: c.text, flex: 1 }]}>{o.label}</Text>
+                    {Math.abs(o.t - t) < 60_000 ? <Icon name="check" size={18} color={c.accent} weight={2} /> : null}
+                  </Tap>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.stepper}>
+              <Tap
+                onPress={() => (haptic.select(), setT((x) => Math.max(Date.now() + 60_000, x - 15 * 60_000)))}
+                style={[styles.step, { backgroundColor: c.surface }]}
+              >
+                <Text style={[type.row, { color: c.text }]}>−15 dk</Text>
+              </Tap>
+              <Text style={[type.small, { color: c.text, flex: 1, textAlign: 'center', fontFamily: font.uiMedium }]}>{fmt(t)}</Text>
+              <Tap onPress={() => (haptic.select(), setT((x) => x + 15 * 60_000))} style={[styles.step, { backgroundColor: c.surface }]}>
+                <Text style={[type.row, { color: c.text }]}>+15 dk</Text>
               </Tap>
             </View>
-          ))}
-        </View>
-
-        <View style={styles.stepper}>
-          <Tap onPress={() => (haptic.select(), setT((x) => Math.max(Date.now() + 60_000, x - 15 * 60_000)))} style={[styles.step, { backgroundColor: c.surface }]}>
-            <Text style={[type.row, { color: c.text }]}>−15 dk</Text>
-          </Tap>
-          <Text style={[type.small, { color: c.text, flex: 1, textAlign: 'center', fontFamily: font.uiMedium }]}>{fmt(t)}</Text>
-          <Tap onPress={() => (haptic.select(), setT((x) => x + 15 * 60_000))} style={[styles.step, { backgroundColor: c.surface }]}>
-            <Text style={[type.row, { color: c.text }]}>+15 dk</Text>
-          </Tap>
-        </View>
+          </>
+        )}
 
         <View style={styles.switchRow}>
           <View style={{ flex: 1 }}>

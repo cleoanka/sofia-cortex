@@ -52,6 +52,11 @@ Yapay zekâ yok, hesap yok, sunucu yok. Her şey telefonda, SQLite'ta.
 <td><img src="assets/screenshots/08-menu-dark.png"/><br/><sub><b>••• menüsü.</b> Sabitle, taşı, hatırlatıcı, görev/not, planı kilitle.</sub></td>
 <td><img src="assets/screenshots/09-search-dark.png"/><br/><sub><b>Arama.</b> Aksan-duyarsız: “tur” yazınca “Türev” de bulunur.</sub></td>
 </tr>
+<tr>
+<td><img src="assets/screenshots/10-autopilot-split-keyboard.png"/><br/><sub><b>İkiye böl.</b> İki alan görevin hemen altında açılır; klavye onlara ulaşamaz.</sub></td>
+<td><img src="assets/screenshots/11-observer-keyboard.png"/><br/><sub><b>Eylem adımı yazarken.</b> Yazılan alan her zaman klavyenin üstünde kalır.</sub></td>
+<td><img src="assets/screenshots/12-subtask-counts.png"/><br/><sub><b>Alt görevler.</b> Solda tek bir daire, sağda sadece <code>2/5 ›</code>.</sub></td>
+</tr>
 </table>
 
 ## Kullanım
@@ -60,7 +65,7 @@ Yapay zekâ yok, hesap yok, sunucu yok. Her şey telefonda, SQLite'ta.
 |---|---|
 | Yeni not | Sağ alttaki ＋. Başlık yazılmaya hazır gelir; Return gövdeye geçer. Boş bırakılan not kendiliğinden silinir. |
 | Görev yapmak | Satırın solundaki soluk daireye dokun ya da klavye çubuğundaki ☐. |
-| Yeni satır | Satırdayken Return. Boş bir görevde Return veya ⌫ onu düz metne çevirir. Sayfanın boş kısmına dokunmak da yeni satır açar. |
+| Yeni satır | Satırdayken Return. Boş bir görevde Return veya ⌫ onu düz metne çevirir. Sayfanın boş kısmına dokunmak da yeni satır açar. Hiçbir şey yazılmadan bırakılan satır kendiliğinden kaybolur; boş bir görev satırı sayaçlara, *Sıradaki*'ye ve Otopilot'a asla girmez. |
 | Alt görev | Satırı sağa kaydır ya da ↳ Altına al. |
 | Silmek | Satırı sola kaydır ya da üst bardaki çöp kutusu. Hemen çıkan *Geri al* ile tek dokunuşta geri gelir. |
 | Bağlantı | Klavye çubuğunda *Bağla* ya da `&` yaz: `&Fizik&`. Böyle bir not varsa bağlantıdır, yoksa etiket olur. |
@@ -84,7 +89,7 @@ Ayrıntılar: [`ARCHITECTURE.md`](ARCHITECTURE.md) · çalışma kuralları: [`C
 tasarım yönü: [`docs/design-direction.md`](docs/design-direction.md)
 
 **Ölçülen performans (10 000 not):** açılışta yükleme ~15 ms · tikleme ve yukarı yayılma ~0.07 ms ·
-arama ~0.9 ms · graf fizik adımı ~6 ms. `bun test` → 94 test.
+arama ~0.9 ms · graf fizik adımı ~6 ms. `bun test` → 99 test.
 
 ## Kurulum
 

@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { stripRefs } from '../engine/links';
@@ -11,7 +11,8 @@ import { usePalette } from '../theme/ThemeProvider';
 import { fadeIn, fadeOut } from '../theme/motion';
 import { font } from '../theme/tokens';
 import { markCascade } from '../ui/choreo';
-import { IconButton, Tap, TopBar } from '../ui/primitives';
+import { useKeyboardHeight } from '../ui/keyboard';
+import { IconButton, Tap, TopBar, useBarInset } from '../ui/primitives';
 
 /**
  * Beyni kapat. One task, nothing else on the screen. Done → the next one
@@ -68,13 +69,22 @@ function Stage({ id, onDone, onSkip }: { id: NodeId; onDone: () => void; onSkip:
   const [splitting, setSplitting] = useState(false);
   const [a, setA] = useState('');
   const [b, setB] = useState('');
+  const kb = useKeyboardHeight();
+  const second = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const top = useBarInset();
   if (!n) return null;
   const parent = e.get(n.parentId);
   const body = stripRefs(n.body).trim();
 
   const complete = () => {
     if (e.get(id)?.done) return;
-    markCascade(e.path(id).slice(0, -1).map((x) => x.id).reverse());
+    markCascade(
+      e
+        .path(id)
+        .slice(0, -1)
+        .map((x) => x.id)
+        .reverse(),
+    );
     const r = e.toggle(id, true);
     if (r.cascaded.length) haptic.cascade();
     else haptic.tick();
@@ -84,22 +94,31 @@ function Stage({ id, onDone, onSkip }: { id: NodeId; onDone: () => void; onSkip:
   const split = () => {
     if (!a.trim() || !b.trim()) return haptic.warn();
     e.split(id, a, b);
+    Keyboard.dismiss();
     haptic.select();
     setSplitting(false);
     onDone();
   };
 
+  // While splitting, everything moves to the top of the screen — the task,
+  // then the two inputs right under it — so the keyboard can never reach them.
   return (
-    <Animated.View entering={fadeIn} exiting={fadeOut} style={styles.stage}>
-      <View style={styles.center}>
+    <Animated.View
+      entering={fadeIn}
+      exiting={fadeOut}
+      style={[styles.stage, splitting && { justifyContent: 'flex-start', paddingTop: top + 16, paddingBottom: kb + 24 }]}
+    >
+      <View style={splitting ? null : styles.center}>
         {parent ? (
           <Text numberOfLines={1} style={[styles.sub, { color: c.textDim, marginBottom: 10 }]}>
             {parent.title}
           </Text>
         ) : null}
-        <Text style={[styles.title, { color: c.text }]}>{n.title || 'Adsız görev'}</Text>
-        {n.reminderHook ? <Text style={[styles.sub, { color: c.amberInk, marginTop: 14 }]}>İlk hareket: {n.reminderHook}</Text> : null}
-        {body ? (
+        <Text numberOfLines={splitting ? 2 : undefined} style={[styles.title, { color: c.text }]}>
+          {n.title}
+        </Text>
+        {!splitting && n.reminderHook ? <Text style={[styles.sub, { color: c.amberInk, marginTop: 14 }]}>İlk hareket: {n.reminderHook}</Text> : null}
+        {!splitting && body ? (
           <Text numberOfLines={3} style={[styles.sub, { color: c.textDim, marginTop: 12 }]}>
             {body}
           </Text>
@@ -107,11 +126,32 @@ function Stage({ id, onDone, onSkip }: { id: NodeId; onDone: () => void; onSkip:
       </View>
 
       {splitting ? (
-        <Animated.View entering={fadeIn} style={{ gap: 4 }}>
-          <TextInput value={a} onChangeText={setA} autoFocus placeholder="İlk adım" placeholderTextColor={c.textFaint} selectionColor={c.accent} style={[styles.input, { color: c.text, borderBottomColor: c.hairline }]} returnKeyType="next" />
-          <TextInput value={b} onChangeText={setB} onSubmitEditing={split} placeholder="Sonraki adım" placeholderTextColor={c.textFaint} selectionColor={c.accent} style={[styles.input, { color: c.text, borderBottomColor: c.hairline }]} returnKeyType="done" />
+        <Animated.View entering={fadeIn} style={{ gap: 4, marginTop: 20 }}>
+          <TextInput
+            value={a}
+            onChangeText={setA}
+            autoFocus
+            placeholder="İlk adım"
+            placeholderTextColor={c.textFaint}
+            selectionColor={c.accent}
+            style={[styles.input, { color: c.text, borderBottomColor: c.hairline }]}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => second.current?.focus()}
+          />
+          <TextInput
+            ref={second}
+            value={b}
+            onChangeText={setB}
+            onSubmitEditing={split}
+            placeholder="Sonraki adım"
+            placeholderTextColor={c.textFaint}
+            selectionColor={c.accent}
+            style={[styles.input, { color: c.text, borderBottomColor: c.hairline }]}
+            returnKeyType="done"
+          />
           <View style={[styles.secondaryRow, { marginTop: 14 }]}>
-            <Tap onPress={() => setSplitting(false)} style={styles.secondary}>
+            <Tap onPress={() => (Keyboard.dismiss(), setSplitting(false))} style={styles.secondary}>
               <Text style={[styles.secondaryText, { color: c.textDim }]}>Vazgeç</Text>
             </Tap>
             <Tap onPress={split} style={styles.secondary}>

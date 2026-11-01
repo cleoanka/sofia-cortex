@@ -1,6 +1,6 @@
 import { BlurView } from 'expo-blur';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Dimensions, FlatList, Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { ease } from '../theme/motion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import { usePalette, useTheme } from '../theme/ThemeProvider';
 import { font, radius, type } from '../theme/tokens';
 import { Icon, type IconName } from './Icon';
 import { guard } from './actions';
+import { useKeyboardHeight } from './keyboard';
 import { Tap } from './primitives';
 import { paletteQuery } from './richText';
 
@@ -62,6 +63,7 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
   const { setPref } = useTheme();
   const e = useEngine();
   const insets = useSafeAreaInsets();
+  const kb = useKeyboardHeight();
   const [q, setQ] = useState('');
   const input = useRef<React.ComponentRef<typeof TextInput>>(null);
   const close = () => {
@@ -93,10 +95,26 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
         }
       };
       out.push({ key: 'root', icon: 'globe', title: 'Ana sayfa', sub: 'En üstte, kendi başına', run: moveTo(null), tone: 'accent' });
-      const pool = q.trim() ? e.suggestTitles(q, 30) : e.allLive().filter((n) => e.hasChildren(n.id)).slice(0, 40);
+      const pool = q.trim()
+        ? e.suggestTitles(q, 30)
+        : e
+            .allLive()
+            .filter((n) => e.hasChildren(n.id))
+            .slice(0, 40);
       for (const n of pool) {
         if (n.id === moveId || e.isDescendant(n.id, moveId) || n.id === moving?.parentId) continue;
-        out.push({ key: n.id, icon: 'move', title: n.title || 'Adsız', sub: e.path(n.id).slice(0, -1).map((p) => p.title).join(' › ') || 'Ana sayfa', run: moveTo(n.id) });
+        out.push({
+          key: n.id,
+          icon: 'move',
+          title: n.title || 'Adsız',
+          sub:
+            e
+              .path(n.id)
+              .slice(0, -1)
+              .map((p) => p.title)
+              .join(' › ') || 'Ana sayfa',
+          run: moveTo(n.id),
+        });
       }
       return out;
     }
@@ -110,7 +128,12 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
           key: 'add',
           icon: add.task ? 'task' : 'note',
           title: parent ? `“${add.title}” → ${parent.title}` : `“${add.parent}” bulunamadı`,
-          sub: parent ? `${add.task ? 'Görev' : 'Not'} olarak ekle · ${e.path(parent.id).map((p) => p.title).join(' › ')}` : 'Önce o düğümü oluştur',
+          sub: parent
+            ? `${add.task ? 'Görev' : 'Not'} olarak ekle · ${e
+                .path(parent.id)
+                .map((p) => p.title)
+                .join(' › ')}`
+            : 'Önce o düğümü oluştur',
           tone: 'accent',
           run: () => {
             if (!parent) return haptic.warn();
@@ -124,27 +147,61 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
       }
       const cmd = text.slice(1).trim().toLocaleLowerCase('tr-TR');
       const commands: Item[] = [
-        { key: 'auto', icon: 'tunnel', title: 'Otopilot', sub: 'Sıradaki tek görev', run: () => (close(), haptic.lens(), nav().push({ name: 'autopilot', scope: null })) },
+        {
+          key: 'auto',
+          icon: 'tunnel',
+          title: 'Otopilot',
+          sub: 'Sıradaki tek görev',
+          run: () => (close(), haptic.lens(), nav().push({ name: 'autopilot', scope: null })),
+        },
         { key: 'graph', icon: 'graph', title: 'Graf', sub: 'Beynini gör', run: () => (close(), nav().push({ name: 'graph' })) },
-        { key: 'new', icon: 'plus', title: `Yeni not${cmd.startsWith('yeni ') ? `: ${text.slice(1).trim().slice(5)}` : ''}`, sub: '> yeni Başlık', run: () => {
-          const title = cmd.startsWith('yeni ') ? text.slice(1).trim().slice(5) : '';
-          const id = e.create(null, { title });
-          close();
-          nav().push({ name: 'node', id });
-        } },
-        { key: 'undo', icon: 'undo', title: `Geri al${e.undoLabel ? ` · ${e.undoLabel}` : ''}`, run: () => { const l = e.undo(); close(); if (l) nav().showToast(`Geri alındı · ${l}`, false); } },
+        {
+          key: 'new',
+          icon: 'plus',
+          title: `Yeni not${cmd.startsWith('yeni ') ? `: ${text.slice(1).trim().slice(5)}` : ''}`,
+          sub: '> yeni Başlık',
+          run: () => {
+            const title = cmd.startsWith('yeni ') ? text.slice(1).trim().slice(5) : '';
+            const id = e.create(null, { title });
+            close();
+            nav().push({ name: 'node', id });
+          },
+        },
+        {
+          key: 'undo',
+          icon: 'undo',
+          title: `Geri al${e.undoLabel ? ` · ${e.undoLabel}` : ''}`,
+          run: () => {
+            const l = e.undo();
+            close();
+            if (l) nav().showToast(`Geri alındı · ${l}`, false);
+          },
+        },
         { key: 'dark', icon: 'moon', title: 'Koyu tema', run: () => (setPref('dark'), close()) },
         { key: 'light', icon: 'sun', title: 'Açık tema', run: () => (setPref('light'), close()) },
         { key: 'settings', icon: 'gear', title: 'Ayarlar', run: () => (close(), nav().push({ name: 'settings' })) },
       ];
       const tokens = cmd.split(/\s+/).filter(Boolean);
-      for (const k of commands) if (!add && (!tokens.length || tokens.every((t) => k.title.toLocaleLowerCase('tr-TR').includes(t) || k.key.includes(t)))) out.push(k);
+      for (const k of commands)
+        if (!add && (!tokens.length || tokens.every((t) => k.title.toLocaleLowerCase('tr-TR').includes(t) || k.key.includes(t)))) out.push(k);
       return out;
     }
 
     if (!text) {
       const recent = [...e.allLive()].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8);
-      for (const n of recent) out.push({ key: n.id, icon: n.isTask ? 'task' : 'note', title: n.title || 'Adsız', sub: e.path(n.id).slice(0, -1).map((p) => p.title).join(' › ') || 'Ana sayfa', run: go(n.id) });
+      for (const n of recent)
+        out.push({
+          key: n.id,
+          icon: n.isTask ? 'task' : 'note',
+          title: n.title || 'Adsız',
+          sub:
+            e
+              .path(n.id)
+              .slice(0, -1)
+              .map((p) => p.title)
+              .join(' › ') || 'Ana sayfa',
+          run: go(n.id),
+        });
       return out;
     }
 
@@ -152,14 +209,24 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
     for (const h of hits) {
       const n = e.get(h.id);
       // Links read as prose in results; a title-only hit shows where it lives instead of repeating itself.
-      const snip = h.snippet.replace(/&/g, '').replace(/\[\[([^\]|]*)\|?([^\]]*)\]\]/g, (_m, t: string, al: string) => al || t).replace(/\[\[|\]\]/g, '');
+      const snip = h.snippet
+        .replace(/&/g, '')
+        .replace(/\[\[([^\]|]*)\|?([^\]]*)\]\]/g, (_m, t: string, al: string) => al || t)
+        .replace(/\[\[|\]\]/g, '');
       const plain = snip.replace(/[\u0001\u0002]/g, '');
-      const path = e.path(h.id).slice(0, -1).map((p) => p.title).join(' › ') || 'Ana sayfa';
+      const path =
+        e
+          .path(h.id)
+          .slice(0, -1)
+          .map((p) => p.title)
+          .join(' › ') || 'Ana sayfa';
       out.push({ key: h.id, icon: n?.isTask ? 'task' : 'note', title: h.title || 'Adsız', sub: plain.trim() === h.title.trim() ? path : snip, run: go(h.id) });
     }
     // `&etiket&` — every note that carries it, even when no note has that name.
     const tag = text.match(/^&([^&]+)&?$/);
-    if (tag) for (const id of e.tagged(tag[1])) if (!hits.some((h) => h.id === id)) out.unshift({ key: id, icon: 'note', title: e.get(id)?.title || 'Adsız', sub: `&${tag[1]}&`, run: go(id) });
+    if (tag)
+      for (const id of e.tagged(tag[1]))
+        if (!hits.some((h) => h.id === id)) out.unshift({ key: id, icon: 'note', title: e.get(id)?.title || 'Adsız', sub: `&${tag[1]}&`, run: go(id) });
     out.push({
       key: 'create',
       icon: 'plus',
@@ -175,13 +242,20 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
     return out;
   }, [q, mode, moveId, e]);
 
-
   return (
     <>
-      <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(150)} style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim }]}>
+      <Animated.View
+        entering={FadeIn.duration(150)}
+        exiting={FadeOut.duration(150)}
+        style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim, zIndex: 50 }]}
+      >
         <Tap style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Paleti kapat" />
       </Animated.View>
-      <Animated.View entering={FadeIn.duration(180).easing(ease)} exiting={FadeOut.duration(150).easing(ease)} style={[styles.sheet, { paddingTop: insets.top + 8 }]}>
+      <Animated.View
+        entering={FadeIn.duration(180).easing(ease)}
+        exiting={FadeOut.duration(150).easing(ease)}
+        style={[styles.sheet, { paddingTop: insets.top + 8, zIndex: 51 }]}
+      >
         <BlurView intensity={50} tint={c.scheme === 'dark' ? 'dark' : 'light'} style={[styles.card, { borderColor: c.cardBorder }]}>
           <View style={[StyleSheet.absoluteFill, { backgroundColor: c.card, opacity: 0.86 }]} />
           <View style={styles.inputRow}>
@@ -208,7 +282,8 @@ function PaletteBody({ mode, moveId }: { mode: 'search' | 'move'; moveId?: NodeI
             data={items}
             keyExtractor={(i) => i.key}
             keyboardShouldPersistTaps="handled"
-            style={{ maxHeight: 440 }}
+            // Results end above the keyboard, never under it.
+            style={{ maxHeight: Math.max(120, Math.min(440, Dimensions.get('window').height - kb - insets.top - 8 - 58 - 20)) }}
             renderItem={({ item, index }) => (
               <Tap onPress={item.run} style={[styles.item, index === 0 && q ? { backgroundColor: c.accentSoft } : null]}>
                 <View style={[styles.itemIcon, { backgroundColor: item.tone === 'amber' ? c.amberSoft : item.tone === 'accent' ? c.accentSoft : c.surface }]}>

@@ -3,6 +3,7 @@ import type { TextInput } from 'react-native';
 import { openLinkQuery } from '../engine/links';
 import type { NodeId } from '../engine/types';
 import { editor, useEditor, type FieldKind } from '../state/editor';
+import { nudgeCaret } from './keyboard';
 
 type InputRef = React.ComponentRef<typeof TextInput>;
 
@@ -68,6 +69,7 @@ export function useField(id: NodeId, kind: FieldKind, source: string, commit: (t
     dirty.current = true;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(flush, 350);
+    nudgeCaret();
   };
 
   const replaceAt = (start: number, end: number, text: string) => {
@@ -82,6 +84,7 @@ export function useField(id: NodeId, kind: FieldKind, source: string, commit: (t
 
   const onFocus = () => {
     focused.current = true;
+    setTimeout(nudgeCaret, 60);
     editor().setFocused({
       kind,
       id,
@@ -107,5 +110,5 @@ export function useField(id: NodeId, kind: FieldKind, source: string, commit: (t
     if (focused.current) reportQuery(latest.current, caret.current);
   };
 
-  return { ref, value, latest, flush, props: { ref, value, onChangeText, onFocus, onBlur, onSelectionChange, selection } };
+  return { ref, value, latest, flush, props: { ref, value, onChangeText, onFocus, onBlur, onSelectionChange, selection, onContentSizeChange: nudgeCaret } };
 }

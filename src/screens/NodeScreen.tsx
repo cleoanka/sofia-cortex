@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import type { CortexEngine } from '../engine/CortexEngine';
 import type { CortexNode, NodeId } from '../engine/types';
@@ -16,6 +15,7 @@ import { font, type } from '../theme/tokens';
 import { appendLine, deleteNode, guard, toggleTask } from '../ui/actions';
 import { Icon, type IconName } from '../ui/Icon';
 import { KeyboardBar } from '../ui/KeyboardBar';
+import { KeyboardScrollView } from '../ui/keyboard';
 import { BackButton, Check, Hairline, IconButton, Surface, Tap, TopBar, useBarInset } from '../ui/primitives';
 import { followRef } from '../ui/richText';
 import { LineRow } from '../ui/Rows';
@@ -75,8 +75,9 @@ export function NodeScreen({ id }: { id: NodeId }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <KeyboardAwareScrollView
-        bottomOffset={96}
+      {/* The keyboard bar (46) rides on the keyboard; keep the caret clear of both. */}
+      <KeyboardScrollView
+        margin={46 + 90}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}
@@ -98,13 +99,15 @@ export function NodeScreen({ id }: { id: NodeId }) {
         {/* Empty paper: a tap here starts a new line. */}
         <Pressable onPress={() => !locked && appendLine(id, taskish)} style={{ minHeight: 180 }} accessibilityLabel="Yeni satır" />
         <Backlinks node={n} />
-      </KeyboardAwareScrollView>
+      </KeyboardScrollView>
 
       <TopBar
         left={<BackButton onPress={() => nav().pop()} />}
         right={
           <>
-            {e.nextActions(id, 1).length > 0 ? <BarPill label="Otopilot" onPress={() => (haptic.lens(), nav().push({ name: 'autopilot', scope: id }))} /> : null}
+            {e.nextActions(id, 1).length > 0 ? (
+              <BarPill label="Otopilot" onPress={() => (haptic.lens(), nav().push({ name: 'autopilot', scope: id }))} />
+            ) : null}
             <BarPill label="Dış Göz" onPress={() => (haptic.lens(), nav().push({ name: 'observer', id }))} />
             <IconButton icon="trash" label="Sil" disabled={locked} onPress={() => deleteNode(id) && nav().pop()} />
             <IconButton icon="more" label="Diğer" onPress={() => (haptic.select(), setMenu(true))} />
@@ -233,6 +236,8 @@ function NodeMenu({ node, locked, onClose }: { node: CortexNode; locked: boolean
   const e = useEngine();
   const top = useBarInset();
   const run = (fn: () => void) => () => {
+    // Sheets and the palette open on a clean screen, never over a raised keyboard.
+    Keyboard.dismiss();
     onClose();
     haptic.select();
     fn();

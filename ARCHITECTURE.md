@@ -91,9 +91,16 @@ mutations (`create/move/remove/indent/outdent/reorder`) throw `SealedError`; `to
 allowed; `split` and `addProtocol` pass `force` because micro-splitting is execution, not
 re-planning. The seal dissolves by itself when the plan is done.
 
+### Drafts
+
+A task with no title, no body and no children is a *draft* — the empty `◯ Görev` waiting at the
+bottom of a page. `isDraft()` keeps it out of `progress`, `deepProgress`, propagation, cascades and
+`nextActions`; writing its first word makes it count (and re-runs propagation). An empty line is
+also dropped (outside history) once focus has really left it.
+
 ### Autopilot queue
 
-`nextActions(scope)` = open tasks with no open task children, in document order, pinned
+`nextActions(scope)` = open, non-draft tasks with no open task children, in document order, pinned
 surfaces first, steeping nodes excluded. O(n) over the scope, ~0.2 ms for 10k nodes.
 
 ## 4. Performance budget (iPhone 12, A14, 60 Hz)
@@ -135,8 +142,14 @@ labels, no boxes in boxes, no invented words. Motion is `withTiming` 150–220 m
   debounced commit coalesced into one undo step, flush on blur/unmount). The faint circle turns a
   line into a task; Return makes the next line of the same kind; Return/Backspace on an empty
   task turns it back into text. Tap on empty paper starts a new line.
-* **Keyboard** — `react-native-keyboard-controller`: `KeyboardAwareScrollView` keeps the caret
-  ≥ 80 pt above the keyboard; `KeyboardBar` (☑ Görev · ↳ Altına al · ↰ Üste çıkar · & Bağla ·
+* **Keyboard** — no focused input may ever sit under the keyboard. `useKeyboardHeight()`
+  (`ui/keyboard.tsx`) reads the real height from `keyboardWillShow/WillHide`. `KeyboardScrollView`
+  (note page, Dış Göz) adds `keyboard + 100` of room and, on keyboard show and on every caret
+  report from a field (`nudgeCaret()` on focus / typing / content-size change), measures
+  `TextInput.State.currentlyFocusedInput()` in window coordinates and scrolls it above
+  `screen − keyboard − margin`. Autopilot's split inputs open directly under the task title; the
+  reminder drawer sits on the keyboard and folds its time pickers away; search results end above
+  the keyboard. `KeyboardBar` (☑ Görev · ↳ Altına al · ↰ Üste çıkar · & Bağla ·
   Bitti) rides on top of it and is tied to focus, so it also docks at the bottom with a hardware
   keyboard. iOS commits a pending autocorrection when the bar is tapped, so inserts are deferred
   one frame.

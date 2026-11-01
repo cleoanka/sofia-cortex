@@ -10,8 +10,8 @@ import { usePalette, useTheme } from '../theme/ThemeProvider';
 import { fadeIn } from '../theme/motion';
 import { font, type } from '../theme/tokens';
 import { Icon } from '../ui/Icon';
-import { Hairline, ProgressRing, Tap, TopBar, useBarInset } from '../ui/primitives';
-import { NoteRow } from '../ui/Rows';
+import { Hairline, Tap, TopBar, useBarInset } from '../ui/primitives';
+import { Count, NoteRow } from '../ui/Rows';
 
 function greeting(h: number): string {
   if (h < 5) return 'İyi geceler';
@@ -54,7 +54,11 @@ export function HomeScreen() {
         ) : (
           roots.map((id, i) => (
             <View key={id}>
-              {i > 0 ? <View style={{ marginRight: 20 }}><Hairline inset={20} /></View> : null}
+              {i > 0 ? (
+                <View style={{ marginRight: 20 }}>
+                  <Hairline inset={20} />
+                </View>
+              ) : null}
               <NoteRow id={id} />
             </View>
           ))
@@ -84,7 +88,17 @@ export function HomeScreen() {
   );
 }
 
-function BarIcon({ icon, label, onPress, onLongPress }: { icon: 'search' | 'graph' | 'sun' | 'moon'; label: string; onPress: () => void; onLongPress?: () => void }) {
+function BarIcon({
+  icon,
+  label,
+  onPress,
+  onLongPress,
+}: {
+  icon: 'search' | 'graph' | 'sun' | 'moon';
+  label: string;
+  onPress: () => void;
+  onLongPress?: () => void;
+}) {
   const c = usePalette();
   return (
     <Tap onPress={onPress} onLongPress={onLongPress} hitSlop={6} accessibilityLabel={label} style={styles.barIcon}>
@@ -100,11 +114,15 @@ function NextPill({ id }: { id: NodeId }) {
   if (!n) return null;
   return (
     <Animated.View entering={fadeIn} style={{ paddingHorizontal: 20 }}>
-      <Tap onPress={() => (haptic.lens(), nav().push({ name: 'autopilot', scope: null }))} style={[styles.pill, { backgroundColor: c.surface }]} accessibilityLabel={`Sıradaki: ${n.title}`}>
+      <Tap
+        onPress={() => (haptic.lens(), nav().push({ name: 'autopilot', scope: null }))}
+        style={[styles.pill, { backgroundColor: c.surface }]}
+        accessibilityLabel={`Sıradaki: ${n.title}`}
+      >
         <Text style={{ fontSize: 11, color: c.amberInk }}>▶</Text>
         <Text style={[type.small, { color: c.textDim, fontFamily: font.uiMedium }]}>Sıradaki:</Text>
         <Text numberOfLines={1} style={[type.small, { color: c.text, fontFamily: font.uiMedium, flex: 1 }]}>
-          {n.title || 'Adsız görev'}
+          {n.title}
         </Text>
         <Icon name="chevron" size={15} color={c.textFaint} />
       </Tap>
@@ -122,7 +140,7 @@ const PinTile = memo(function PinTile({ id }: { id: NodeId }) {
       <Text numberOfLines={2} style={[type.small, { color: c.text, fontFamily: font.uiMedium, fontSize: 14, lineHeight: 19, flex: 1 }]}>
         {n.title || 'Yeni not'}
       </Text>
-      {p.done > 0 ? <ProgressRing done={p.done} total={p.total} size={14} /> : null}
+      {p.total > 0 ? <Count done={p.done} total={p.total} /> : null}
     </Tap>
   );
 });

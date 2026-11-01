@@ -14,7 +14,7 @@ expo-haptics · expo-notifications · zustand.
 
 ## Commands
 ```bash
-bun test                    # engine, links, physics, edge cases (94 tests)
+bun test                    # engine, links, physics, edge cases (99 tests)
 npx tsc --noEmit            # strict, noUnusedLocals
 npx expo run:ios            # simulator dev build
 npx expo run:ios --device   # physical iPhone (USB/Wi-Fi)
@@ -37,7 +37,10 @@ npx expo run:ios --device   # physical iPhone (USB/Wi-Fi)
    lens = Observer/Autopilot switch, select = structure change, thud = commit/drop, warn = blocked.
 8. **Locked plan is law.** Structural writes inside an unfinished sealed plan throw `SealedError`;
    UI wraps them in `guard()` (`src/ui/actions.ts`). Delete is a hard delete with one-step undo.
-9. **Turkish text** — `toLocaleLowerCase('tr-TR')`; in regexes never trust `\b` (ASCII-only).
+9. **Keyboard never covers a field.** Scrolling screens with inputs use `KeyboardScrollView`;
+   anything else reads `useKeyboardHeight()`. New editable fields call `nudgeCaret()` on focus.
+10. **Empty is not work.** Draft tasks (`isDraft`) never count, never enter Autopilot.
+11. **Turkish text** — `toLocaleLowerCase('tr-TR')`; in regexes never trust `\b` (ASCII-only).
 
 ## Design tokens (summary)
 Light "Kağıt": bg `#FBF9F5`, surface `#F3EFEA`, card `#FFFFFF` + `#E6E1DA` hairline, text `#18181B`/`#71717A`,

@@ -205,8 +205,8 @@ export class CortexEngine {
     if (next) this.nodes.set(id, next);
     else this.nodes.delete(id);
 
-    const prevKey = prevLive ? prevLive.parentId ?? ROOT : null;
-    const nextKey = nextLive ? nextLive.parentId ?? ROOT : null;
+    const prevKey = prevLive ? (prevLive.parentId ?? ROOT) : null;
+    const nextKey = nextLive ? (nextLive.parentId ?? ROOT) : null;
     if (prevKey !== null && (prevKey !== nextKey || prevLive!.sort !== nextLive!.sort)) {
       const list = this.kids.get(prevKey);
       if (list) {
@@ -343,12 +343,27 @@ export class CortexEngine {
     return (this.kids.get(id)?.length ?? 0) > 0;
   }
 
+  /**
+   * A task line that was opened but never written — the empty `◯ Görev` waiting
+   * at the bottom of a page. It is a placeholder, not work: it never counts in
+   * progress, never drives propagation and never enters the Autopilot queue.
+   */
+  isDraft(id: NodeId): boolean {
+    const n = this.nodes.get(id);
+    return !!n && n.isTask && !n.title.trim() && !n.body.trim() && (this.kids.get(id) ?? EMPTY).every((c) => this.isDraft(c));
+  }
+
+  /** A task that counts: real tasks, never drafts. */
+  private isWork(id: NodeId): boolean {
+    return this.nodes.get(id)!.isTask && !this.isDraft(id);
+  }
+
   progress(id: NodeId): Progress {
     let done = 0;
     let total = 0;
     for (const c of this.kids.get(id) ?? EMPTY) {
       const n = this.nodes.get(c)!;
-      if (!n.isTask) continue;
+      if (!this.isWork(c)) continue;
       total++;
       if (n.done) done++;
     }
@@ -364,8 +379,8 @@ export class CortexEngine {
       const c = stack.pop()!;
       const n = this.nodes.get(c)!;
       const k = this.kids.get(c);
-      const hasTaskKids = k?.some((x) => this.nodes.get(x)!.isTask) ?? false;
-      if (n.isTask && !hasTaskKids) {
+      const hasTaskKids = k?.some((x) => this.isWork(x)) ?? false;
+      if (this.isWork(c) && !hasTaskKids) {
         total++;
         if (n.done) done++;
       }
@@ -553,7 +568,7 @@ export class CortexEngine {
     while (stack.length) {
       const c = stack.pop()!;
       const n = this.nodes.get(c)!;
-      if (n.isTask && !n.done) return true;
+      if (n.isTask && !n.done && !this.isDraft(c)) return true;
       const k = this.kids.get(c);
       if (k) stack.push(...k);
     }
@@ -579,11 +594,11 @@ export class CortexEngine {
       if (out.length >= limit || seen.has(id)) return;
       seen.add(id);
       const n = this.nodes.get(id)!;
-      if (n.isTask && n.done) return;
+      if ((n.isTask && n.done) || this.isDraft(id)) return;
       const k = this.kids.get(id) ?? EMPTY;
       const openTaskKids = k.some((c) => {
         const x = this.nodes.get(c)!;
-        return x.isTask && !x.done;
+        return x.isTask && !x.done && !this.isDraft(c);
       });
       if (n.isTask && !openTaskKids) {
         if (n.steepUntil == null || n.steepUntil <= this.clock()) out.push(id);
@@ -669,24 +684,31 @@ export class CortexEngine {
     patch: Partial<Pick<CortexNode, 'title' | 'body' | 'collapsed' | 'steepUntil' | 'reminderAt' | 'reminderHook' | 'reminderId'>>,
     opts: { history?: boolean } = {},
   ): void {
-    this.transact('Düzenle', () => {
-      const n = this.must(id);
-      const next = { ...n, ...patch, updatedAt: this.clock() };
-      if (patch.title !== undefined && titleKey(patch.title) !== titleKey(n.title) && n.title.trim()) {
-        const oldKey = titleKey(n.title);
-        const others = [...(this.titles.get(oldKey) ?? [])].filter((x) => x !== id);
-        // Only rewrite references when this node is their sole target.
-        if (others.length === 0 && patch.title.trim()) {
-          for (const src of [...(this.inLinks.get(oldKey) ?? [])]) {
-            if (src === id) continue;
-            const s = this.nodes.get(src)!;
-            const body = renameRefs(s.body, n.title, patch.title.trim());
-            if (body !== s.body) this.put({ ...s, body, updatedAt: this.clock() });
+    this.transact(
+      'Düzenle',
+      () => {
+        const n = this.must(id);
+        const next = { ...n, ...patch, updatedAt: this.clock() };
+        if (patch.title !== undefined && titleKey(patch.title) !== titleKey(n.title) && n.title.trim()) {
+          const oldKey = titleKey(n.title);
+          const others = [...(this.titles.get(oldKey) ?? [])].filter((x) => x !== id);
+          // Only rewrite references when this node is their sole target.
+          if (others.length === 0 && patch.title.trim()) {
+            for (const src of [...(this.inLinks.get(oldKey) ?? [])]) {
+              if (src === id) continue;
+              const s = this.nodes.get(src)!;
+              const body = renameRefs(s.body, n.title, patch.title.trim());
+              if (body !== s.body) this.put({ ...s, body, updatedAt: this.clock() });
+            }
           }
         }
-      }
-      this.put(next);
-    }, opts);
+        const wasDraft = this.isDraft(id);
+        this.put(next);
+        // Writing the first word into a draft task makes it count (and vice versa).
+        if (n.isTask && wasDraft !== this.isDraft(id)) this.propagate(n.parentId);
+      },
+      opts,
+    );
   }
 
   setTask(id: NodeId, isTask: boolean): void {
@@ -696,7 +718,7 @@ export class CortexEngine {
       if (n.isTask && !isTask) this.assertUnlocked(n.parentId, id);
       const p = this.progress(id);
       const done = isTask && p.total > 0 ? p.done === p.total : isTask ? n.done : false;
-      this.put({ ...n, isTask, done, doneAt: done ? n.doneAt ?? this.clock() : null, updatedAt: this.clock() });
+      this.put({ ...n, isTask, done, doneAt: done ? (n.doneAt ?? this.clock()) : null, updatedAt: this.clock() });
       this.propagate(n.parentId);
     });
   }
@@ -716,7 +738,7 @@ export class CortexEngine {
         for (const d of this.subtree(id)) {
           if (d === id) continue;
           const x = this.nodes.get(d)!;
-          if (x.isTask && x.done !== target) this.put({ ...x, done: target, doneAt: target ? t : null, updatedAt: t });
+          if (x.isTask && x.done !== target && !this.isDraft(d)) this.put({ ...x, done: target, doneAt: target ? t : null, updatedAt: t });
         }
       }
       const cur = this.nodes.get(id)!;
@@ -734,11 +756,13 @@ export class CortexEngine {
       const p = this.nodes.get(pid);
       if (!p || !p.isTask || p.deletedAt != null) break;
       const { done, total } = this.progress(pid);
-      if (total === 0) break;
       const should = done === total;
-      if (p.done === should) break;
-      this.put({ ...p, done: should, doneAt: should ? t : null, updatedAt: t });
-      flipped.push(pid);
+      // No flip here can still matter above: a draft that just gained (or lost) real
+      // children starts (or stops) counting for its own parent. Walk on — O(depth).
+      if (total > 0 && p.done !== should) {
+        this.put({ ...p, done: should, doneAt: should ? t : null, updatedAt: t });
+        flipped.push(pid);
+      }
       pid = p.parentId;
     }
     return flipped;
@@ -1046,8 +1070,7 @@ export class CortexEngine {
         n++;
       }
       // Orphans (parent missing) surface on Home rather than vanish.
-      for (const node of [...this.nodes.values()])
-        if (node.parentId && !this.nodes.get(node.parentId)) this.put({ ...node, parentId: null });
+      for (const node of [...this.nodes.values()]) if (node.parentId && !this.nodes.get(node.parentId)) this.put({ ...node, parentId: null });
       return n;
     });
   }
