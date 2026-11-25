@@ -12,21 +12,30 @@ mock.module('expo-haptics', () => ({
   ImpactFeedbackStyle: {},
   NotificationFeedbackType: {},
 }));
+const os = { seq: 0, scheduled: new Map<string, number>() };
 mock.module('expo-notifications', () => ({
   setNotificationHandler: () => {},
-  cancelScheduledNotificationAsync: async () => {},
-  scheduleNotificationAsync: async () => 'rid',
+  cancelScheduledNotificationAsync: async (rid: string) => void os.scheduled.delete(rid),
+  scheduleNotificationAsync: async (req: { trigger: { date: Date } }) => {
+    const rid = 'r' + ++os.seq;
+    os.scheduled.set(rid, req.trigger.date.getTime());
+    return rid;
+  },
+  getLastNotificationResponse: () => null,
+  addNotificationResponseReceivedListener: () => ({ remove: () => {} }),
   getPermissionsAsync: async () => ({ granted: true }),
   requestPermissionsAsync: async () => ({ granted: true }),
   SchedulableTriggerInputTypes: { DATE: 'date' },
 }));
 
-const { appendLine } = await import('../src/ui/actions');
+const { appendLine, deleteNode } = await import('../src/ui/actions');
+const { installNotificationRouting, setReminder } = await import('../src/platform/notify');
 const { nav } = await import('../src/state/nav');
 
+let t = 1_000;
 function mk() {
-  let t = 1_000;
   let i = 0;
+  os.scheduled.clear();
   engine = new CortexEngine(memoryDriver(), () => ++t, () => 'n' + String(++i).padStart(5, '0'));
   return engine;
 }
@@ -56,5 +65,58 @@ describe('appendLine', () => {
     expect(e.get(draft)!.isTask).toBe(false);
     expect(e.get(draft)!.fmt?.l).toBe('bullet');
     expect(e.children(page)).toEqual([draft]);
+  });
+});
+
+describe('reminders across undo', () => {
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+
+  test('delete cancels the alarm; undo re-schedules it', async () => {
+    const e = mk();
+    const off = installNotificationRouting();
+    const note = e.create(null, { title: 'Ara' });
+    const at = Date.now() + 3_600_000;
+    await setReminder(note, at, null);
+    const first = e.get(note)!.reminderId!;
+    expect(os.scheduled.get(first)).toBe(at);
+
+    expect(deleteNode(note)).toBe(true);
+    await settle();
+    expect(os.scheduled.has(first)).toBe(false);
+
+    expect(e.undo()).toBe('Sil');
+    await settle();
+    const revived = e.get(note)!.reminderId!;
+    expect(revived).not.toBe(first);
+    expect(os.scheduled.get(revived)).toBe(at);
+    expect(e.get(note)!.reminderAt).toBe(at);
+    // Bookkeeping stays out of history: the delete is still the step to redo.
+    expect(e.canRedo).toBe(true);
+    off();
+  });
+
+  test('undoing "remove reminder" re-schedules it; a time already past is dropped', async () => {
+    const e = mk();
+    const off = installNotificationRouting();
+    const note = e.create(null, { title: 'Ara' });
+    const at = Date.now() + 3_600_000;
+    await setReminder(note, at, 'İlk adım');
+    t += 5_000; // a later, separate step (edits within 4 s coalesce)
+    await setReminder(note, null, null);
+    expect(os.scheduled.size).toBe(0);
+    e.undo();
+    await settle();
+    expect(os.scheduled.get(e.get(note)!.reminderId!)).toBe(at);
+    expect(e.get(note)!.reminderHook).toBe('İlk adım');
+
+    const past = e.create(null, { title: 'Dün' });
+    await setReminder(past, Date.now() + 50, null);
+    deleteNode(past);
+    await new Promise((r) => setTimeout(r, 80));
+    e.undo();
+    await settle();
+    expect(e.get(past)!.reminderAt).toBeNull();
+    expect(e.get(past)!.reminderId).toBeNull();
+    off();
   });
 });

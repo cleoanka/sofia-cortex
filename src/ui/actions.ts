@@ -40,7 +40,8 @@ export function deleteNode(id: NodeId): boolean {
   const e = getEngine();
   const n = e.get(id);
   if (!n) return false;
-  const subtree = e.subtree(id);
+  // Read before the hard delete — afterwards the nodes (and their alarm ids) are gone.
+  const subtree = e.subtree(id).map((x) => e.get(x)!);
   if (!guard(() => e.remove(id))) return false;
   cancelTriggers(subtree);
   haptic.thud();

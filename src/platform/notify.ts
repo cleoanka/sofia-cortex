@@ -1,5 +1,5 @@
 import * as Notifications from 'expo-notifications';
-import type { NodeId } from '../engine/types';
+import type { CortexNode, NodeId } from '../engine/types';
 import { getEngine } from './db';
 import { nav, type Route } from '../state/nav';
 
@@ -29,20 +29,51 @@ async function schedule(at: number, title: string, body: string, data: Payload):
   });
 }
 
+/**
+ * OS alarms cancelled while their node still remembers them (delete, "remove
+ * reminder"). Undo restores the node with that dead id; `reviveReminders` rings it again.
+ */
+const cancelled = new Set<string>();
+
+function scheduleReminder(id: NodeId, at: number, hook: string | null): Promise<string | null> {
+  const e = getEngine();
+  const n = e.get(id)!;
+  const title = hook ? `▶ ${hook}` : n.title || 'Sofia Cortex';
+  const body = hook ? `Otopilot hazır · ${n.title}` : e.path(id).slice(0, -1).map((p) => p.title).join(' › ') || 'Hatırlatma';
+  return schedule(at, title, body, { nodeId: id, mode: hook ? 'autopilot' : 'node' });
+}
+
 export async function setReminder(id: NodeId, at: number | null, hook: string | null): Promise<void> {
   const e = getEngine();
   const n = e.get(id);
   if (!n) return;
   if (n.reminderId) await Notifications.cancelScheduledNotificationAsync(n.reminderId).catch(() => {});
   if (at == null) {
+    if (n.reminderId) cancelled.add(n.reminderId);
     e.update(id, { reminderAt: null, reminderHook: null, reminderId: null });
     return;
   }
   if (at <= Date.now()) return;
-  const title = hook ? `▶ ${hook}` : n.title || 'Sofia Cortex';
-  const body = hook ? `Otopilot hazır · ${n.title}` : e.path(id).slice(0, -1).map((p) => p.title).join(' › ') || 'Hatırlatma';
-  const rid = await schedule(at, title, body, { nodeId: id, mode: hook ? 'autopilot' : 'node' });
+  const rid = await scheduleReminder(id, at, hook);
   e.update(id, { reminderAt: at, reminderHook: hook, reminderId: rid });
+}
+
+/** After undo: a live node carrying a cancelled alarm id gets a fresh alarm (or drops a past one). */
+export async function reviveReminders(ids: Iterable<NodeId>): Promise<void> {
+  const e = getEngine();
+  for (const id of ids) {
+    const n = e.get(id);
+    const old = n?.reminderId;
+    if (!n || n.deletedAt != null || !old || !cancelled.has(old)) continue;
+    cancelled.delete(old);
+    const rid = n.reminderAt != null && n.reminderAt > Date.now() ? await scheduleReminder(id, n.reminderAt, n.reminderHook) : null;
+    // Deleted or changed again while scheduling — the new alarm must not outlive that.
+    if (e.get(id)?.reminderId !== old) {
+      if (rid) Notifications.cancelScheduledNotificationAsync(rid).catch(() => {});
+      continue;
+    }
+    e.update(id, rid ? { reminderId: rid } : { reminderAt: null, reminderHook: null, reminderId: null }, { history: false });
+  }
 }
 
 export async function scheduleSteep(id: NodeId, title: string, at: number): Promise<void> {
@@ -60,12 +91,13 @@ export async function cancelSteep(id: NodeId): Promise<void> {
 }
 
 /** A deleted subtree must not keep ringing. */
-export function cancelTriggers(ids: NodeId[]): void {
-  const e = getEngine();
-  for (const id of ids) {
-    const n = e.get(id);
-    if (n?.reminderId) Notifications.cancelScheduledNotificationAsync(n.reminderId).catch(() => {});
-    cancelSteep(id);
+export function cancelTriggers(nodes: CortexNode[]): void {
+  for (const n of nodes) {
+    if (n.reminderId) {
+      cancelled.add(n.reminderId);
+      Notifications.cancelScheduledNotificationAsync(n.reminderId).catch(() => {});
+    }
+    cancelSteep(n.id);
   }
 }
 
@@ -89,9 +121,13 @@ function handle(r: Notifications.NotificationResponse | null) {
   nav().reset(routeFor(data as Payload));
 }
 
-/** Cold-start + warm taps. Called once at boot, before first paint. */
+/** Cold-start + warm taps, and alarms brought back by undo. Called once at boot, before first paint. */
 export function installNotificationRouting(): () => void {
   handle(Notifications.getLastNotificationResponse());
   const sub = Notifications.addNotificationResponseReceivedListener(handle);
-  return () => sub.remove();
+  const off = getEngine().subscribeAll((changed) => void reviveReminders(changed));
+  return () => {
+    sub.remove();
+    off();
+  };
 }
