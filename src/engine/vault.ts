@@ -2,7 +2,11 @@ import { tableMarkdown } from './table';
 import type { CortexEngine } from './CortexEngine';
 import type { CortexNode } from './types';
 
-const safe = (s: string) => (s.trim() || 'Adsız').replace(/[\\/:*?"<>|#^[\]]/g, '-').replace(/\s+/g, ' ').slice(0, 80);
+const safe = (s: string) => {
+  const name = (s.trim() || 'Adsız').replace(/[\\/:*?"<>|#^[\]]/g, '-').replace(/\s+/g, ' ').slice(0, 80);
+  // "." / ".." as a folder would climb out of the vault when the zip is unpacked.
+  return /^\.+$/.test(name) ? 'Adsız' : name;
+};
 
 /**
  * Markdown vault: a node with children becomes a folder holding its own

@@ -285,6 +285,19 @@ describe('veri egemenliği', () => {
     expect(paths.some((p) => p.endsWith('Zor sorular/Zor sorular.md'))).toBe(true);
     expect(new Set(paths.map((p) => p.toLowerCase())).size).toBe(paths.length);
   });
+
+  test('markdown ağacı: ".." / "." başlığı kasa klasörünün dışına çıkmaz', async () => {
+    const { toMarkdownTree } = await import('../src/engine/vault');
+    const { e } = mk();
+    const up = e.create(null, { title: '..' });
+    e.create(up, { title: 'x' });
+    const dot = e.create(null, { title: '.' });
+    e.create(dot, { title: 'y' });
+    const paths = Object.keys(toMarkdownTree(e));
+    expect(paths.every((p) => p.startsWith('Sofia Cortex/') && !p.split('/').some((s) => s === '..' || s === '.'))).toBe(true);
+    expect(paths).toContain('Sofia Cortex/Adsız/x.md');
+    expect(paths).toContain('Sofia Cortex/Adsız 2/y.md');
+  });
 });
 
 describe('inceleme bulguları', () => {
