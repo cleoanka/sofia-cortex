@@ -14,7 +14,7 @@ expo-haptics · expo-notifications · zustand.
 
 ## Commands
 ```bash
-bun test                    # engine, links, physics, edge cases (115 tests)
+bun test                    # engine, links, physics, edge cases (128 tests)
 npx tsc --noEmit            # strict, noUnusedLocals
 npx expo run:ios            # simulator dev build
 npx expo run:ios --device   # physical iPhone (USB/Wi-Fi)

@@ -93,7 +93,7 @@ Ayrıntılar: [`ARCHITECTURE.md`](ARCHITECTURE.md) · çalışma kuralları: [`C
 tasarım yönü: [`docs/design-direction.md`](docs/design-direction.md)
 
 **Ölçülen performans (10 000 not):** açılışta yükleme ~15 ms · tikleme ve yukarı yayılma ~0.07 ms ·
-arama ~0.9 ms · graf fizik adımı ~6 ms. `bun test` → 115 test.
+arama ~0.9 ms · graf fizik adımı ~6 ms. `bun test` → 128 test.
 
 ## Kurulum
 
