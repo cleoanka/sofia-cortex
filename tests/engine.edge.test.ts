@@ -830,6 +830,24 @@ describe('graph, search & vault export/import', () => {
     expect(e.children(null)).toContain('orphanNode');
   });
 
+  test('importJSON cuts parent loops so every node stays reachable', () => {
+    const { e } = mk();
+    const keep = e.create(null, { title: 'Keep' });
+    const node = (id: string, parentId: string) => ({ id, parentId, title: id }) as never;
+    // a ↔ b and d → f → e → d in the archive.
+    const n = e.importJSON({ nodes: [node('a', 'b'), node('b', 'a'), node('d', 'f'), node('e', 'd'), node('f', 'e')] });
+    expect(n).toBe(5);
+    expect(e.allLive().map((x) => x.id).sort()).toEqual(['a', 'b', 'd', 'e', 'f', keep].sort());
+    expect(e.isDescendant('a', 'b') !== e.isDescendant('b', 'a')).toBe(true);
+    expect(e.isLocked('f')).toBe(false);
+
+    // Merge can also close a loop through a node that already exists.
+    const x = e.create(null, { title: 'X' });
+    const y = e.create(x, { title: 'Y' });
+    e.importJSON({ nodes: [node(x, y)] });
+    expect(e.allLive().some((z) => z.id === x) && e.allLive().some((z) => z.id === y)).toBe(true);
+  });
+
   test('importJSON rejects garbage payloads and ignores invalid entries', () => {
     const { e } = mk();
     expect(() => e.importJSON(null as never)).toThrow('Geçersiz arşiv');

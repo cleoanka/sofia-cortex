@@ -1120,6 +1120,16 @@ export class CortexEngine {
       }
       // Orphans (parent missing) surface on Home rather than vanish.
       for (const node of [...this.nodes.values()]) if (node.parentId && !this.nodes.get(node.parentId)) this.put({ ...node, parentId: null });
+      // A parent loop (broken or hand-edited archive) is unreachable from Home; cut it there.
+      for (const node of [...this.nodes.values()]) {
+        const seen = new Set<NodeId>();
+        let cur = this.nodes.get(node.id);
+        while (cur?.parentId && !seen.has(cur.id)) {
+          seen.add(cur.id);
+          cur = this.nodes.get(cur.parentId);
+        }
+        if (cur?.parentId) this.put({ ...cur, parentId: null });
+      }
       return n;
     });
   }
