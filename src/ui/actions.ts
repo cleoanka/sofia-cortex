@@ -178,9 +178,12 @@ export function appendLine(pageId: NodeId, isTask: boolean, list?: 'bullet' | 'n
   const kids = e.children(pageId);
   const last = kids.length ? e.get(kids[kids.length - 1]) : undefined;
   if (last && last.role !== 'table' && !last.title.trim() && !e.hasChildren(last.id)) {
-    if (last.isTask !== isTask) e.setTask(last.id, isTask);
-    if ((last.fmt?.l ?? undefined) !== list) e.setFmt(last.id, { l: list ?? null });
-    editor().requestFocus(last.id, 'line');
+    // From the keyboard bar this also runs on a locked plan, where task → note is refused.
+    const ok = guard(() => {
+      if (last.isTask !== isTask) e.setTask(last.id, isTask);
+      if ((last.fmt?.l ?? undefined) !== list) e.setFmt(last.id, { l: list ?? null });
+    });
+    if (ok) editor().requestFocus(last.id, 'line');
     return;
   }
   guard(() => {
