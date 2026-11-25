@@ -68,7 +68,12 @@ export function NodeScreen({ id }: { id: NodeId }) {
     () => () => {
       const eng = getEngine();
       const cur = eng.get(id);
-      if (cur && !cur.title.trim() && !cur.body.trim() && !eng.hasChildren(id)) eng.transact('Boş not', () => eng.remove(id), { history: false });
+      if (!cur || cur.title.trim() || cur.body.trim() || eng.hasChildren(id)) return;
+      try {
+        eng.transact('Boş not', () => eng.remove(id), { history: false });
+      } catch {
+        // Inside a locked plan the empty draft simply stays; drafts never count anyway.
+      }
     },
     [id],
   );
