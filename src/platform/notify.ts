@@ -43,19 +43,26 @@ function scheduleReminder(id: NodeId, at: number, hook: string | null): Promise<
   return schedule(at, title, body, { nodeId: id, mode: hook ? 'autopilot' : 'node' });
 }
 
-export async function setReminder(id: NodeId, at: number | null, hook: string | null): Promise<void> {
+/** 'past': the time has gone by, the current reminder stays as it was. 'denied': no notification permission. */
+export async function setReminder(id: NodeId, at: number | null, hook: string | null): Promise<'ok' | 'past' | 'denied'> {
   const e = getEngine();
   const n = e.get(id);
-  if (!n) return;
+  if (!n) return 'ok';
+  if (at != null && at <= Date.now()) return 'past';
   if (n.reminderId) await Notifications.cancelScheduledNotificationAsync(n.reminderId).catch(() => {});
   if (at == null) {
     if (n.reminderId) cancelled.add(n.reminderId);
     e.update(id, { reminderAt: null, reminderHook: null, reminderId: null });
-    return;
+    return 'ok';
   }
-  if (at <= Date.now()) return;
   const rid = await scheduleReminder(id, at, hook);
+  // Without permission nothing will ring — the note must not claim a reminder.
+  if (!rid) {
+    e.update(id, { reminderAt: null, reminderHook: null, reminderId: null });
+    return 'denied';
+  }
   e.update(id, { reminderAt: at, reminderHook: hook, reminderId: rid });
+  return 'ok';
 }
 
 /** After undo: a live node carrying a cancelled alarm id gets a fresh alarm (or drops a past one). */

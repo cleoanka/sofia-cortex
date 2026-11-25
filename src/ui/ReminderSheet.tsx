@@ -67,9 +67,14 @@ function BodyFor({ id }: { id: string }) {
   };
   const apply = async () => {
     haptic.select();
-    await setReminder(id, t, hook ? first.trim() || n.title : null);
+    const r = await setReminder(id, t, hook ? first.trim() || n.title : null);
+    if (r === 'past') {
+      haptic.warn();
+      nav().showToast('Bu saat geçti — başka bir saat seç', false);
+      return;
+    }
     close();
-    nav().showToast('Hatırlatıcı kuruldu', false);
+    nav().showToast(r === 'ok' ? 'Hatırlatıcı kuruldu' : 'Bildirim izni yok — Ayarlar’dan aç', false);
   };
   const clear = async () => {
     haptic.soft();

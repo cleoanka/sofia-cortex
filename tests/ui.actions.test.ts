@@ -12,7 +12,7 @@ mock.module('expo-haptics', () => ({
   ImpactFeedbackStyle: {},
   NotificationFeedbackType: {},
 }));
-const os = { seq: 0, scheduled: new Map<string, number>() };
+const os = { seq: 0, granted: true, scheduled: new Map<string, number>() };
 mock.module('expo-notifications', () => ({
   setNotificationHandler: () => {},
   cancelScheduledNotificationAsync: async (rid: string) => void os.scheduled.delete(rid),
@@ -23,8 +23,8 @@ mock.module('expo-notifications', () => ({
   },
   getLastNotificationResponse: () => null,
   addNotificationResponseReceivedListener: () => ({ remove: () => {} }),
-  getPermissionsAsync: async () => ({ granted: true }),
-  requestPermissionsAsync: async () => ({ granted: true }),
+  getPermissionsAsync: async () => ({ granted: os.granted }),
+  requestPermissionsAsync: async () => ({ granted: os.granted }),
   SchedulableTriggerInputTypes: { DATE: 'date' },
 }));
 
@@ -39,6 +39,7 @@ let t = 1_000;
 function mk() {
   let i = 0;
   os.scheduled.clear();
+  os.granted = true;
   engine = new CortexEngine(memoryDriver(), () => ++t, () => 'n' + String(++i).padStart(5, '0'));
   return engine;
 }
@@ -153,5 +154,30 @@ describe('deep links', () => {
     expect(routeFromUrl('sofia://node/%E0')).toBeNull();
     expect(routeFromUrl('sofia://node/I%C5%9F%C4%B1k')).toEqual([{ name: 'home' }, { name: 'node', id }]);
     expect(routeFromUrl('sofia://autopilot')).toEqual([{ name: 'home' }, { name: 'autopilot', scope: null }]);
+  });
+});
+
+describe('setReminder outcome', () => {
+  test('a past time is refused and leaves the current reminder ringing', async () => {
+    const e = mk();
+    const note = e.create(null, { title: 'Ara' });
+    const at = Date.now() + 3_600_000;
+    expect(await setReminder(note, at, null)).toBe('ok');
+    const rid = e.get(note)!.reminderId!;
+    expect(await setReminder(note, Date.now() - 1, null)).toBe('past');
+    expect(e.get(note)!.reminderAt).toBe(at);
+    expect(e.get(note)!.reminderId).toBe(rid);
+    expect(os.scheduled.get(rid)).toBe(at);
+  });
+
+  test('without permission nothing is scheduled and the note claims no reminder', async () => {
+    const e = mk();
+    const note = e.create(null, { title: 'Ara' });
+    await setReminder(note, Date.now() + 3_600_000, null);
+    os.granted = false;
+    expect(await setReminder(note, Date.now() + 7_200_000, 'Başla')).toBe('denied');
+    expect(os.scheduled.size).toBe(0);
+    const n = e.get(note)!;
+    expect([n.reminderAt, n.reminderHook, n.reminderId]).toEqual([null, null, null]);
   });
 });
