@@ -873,6 +873,17 @@ describe('graph, search & vault export/import', () => {
     expect(e.isLocked('b')).toBe(false);
   });
 
+  test('a sealed node inside a stored parent loop does not hang the lock check', () => {
+    const { db } = mk();
+    seedLegacyRow(db, 'a', 'b', 'A', null);
+    seedLegacyRow(db, 'b', 'a', 'B', null);
+    db.run(`UPDATE nodes SET sealed = 1 WHERE id = 'a'`);
+    const e = new CortexEngine(db);
+    expect(e.get('a')!.sealed).toBe(true);
+    expect(e.activeSeal('b')).toBeUndefined();
+    expect(e.isLocked('a')).toBe(false);
+  });
+
   test('importJSON rejects garbage payloads and ignores invalid entries', () => {
     const { e } = mk();
     expect(() => e.importJSON(null as never)).toThrow('Geçersiz arşiv');

@@ -594,8 +594,11 @@ export class CortexEngine {
 
   private hasOpenTasks(id: NodeId): boolean {
     const stack = [...(this.kids.get(id) ?? EMPTY)];
+    const seen = new Set<NodeId>(); // a stored parent loop must not spin here either
     while (stack.length) {
       const c = stack.pop()!;
+      if (seen.has(c)) continue;
+      seen.add(c);
       const n = this.nodes.get(c)!;
       if (n.isTask && !n.done && !this.isDraft(c)) return true;
       const k = this.kids.get(c);
