@@ -96,7 +96,7 @@ Details: [`ARCHITECTURE.md`](ARCHITECTURE.md) · working rules: [`CLAUDE.md`](CL
 design direction: [`docs/design-direction.md`](docs/design-direction.md)
 
 **Measured performance (10 000 notes):** load at startup ~15 ms · check-off and upward propagation ~0.07 ms ·
-search ~0.9 ms · graph physics step ~6 ms. `bun test` → 128 tests.
+search ~0.9 ms · graph physics step ~6 ms. `bun test` → 129 tests.
 
 ## Setup
 
