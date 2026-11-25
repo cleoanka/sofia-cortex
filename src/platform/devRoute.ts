@@ -12,7 +12,13 @@ export function routeFromUrl(url: string): Route[] | null {
   const m = url.match(/^sofia:\/\/([a-z]+)\/?(.*)$/i);
   if (!m) return null;
   const e = getEngine();
-  const target = m[2] ? e.resolve(titleKey(decodeURIComponent(m[2]))) : undefined;
+  let title: string;
+  try {
+    title = decodeURIComponent(m[2]);
+  } catch {
+    return null; // malformed %-escape from some other app — ignore the link
+  }
+  const target = title ? e.resolve(titleKey(title)) : undefined;
   switch (m[1]) {
     case 'home':
       return [{ name: 'home' }];
@@ -30,7 +36,7 @@ export function routeFromUrl(url: string): Route[] | null {
   return null;
 }
 
-export function applyDevRoute(): void {
+export function applyDevRoute(): () => void {
   const go = (url: string | null | undefined) => {
     if (!url) return;
     const r = routeFromUrl(url);
@@ -38,5 +44,6 @@ export function applyDevRoute(): void {
     if (r) nav().reset(r);
   };
   Linking.getInitialURL().then(go).catch(() => {});
-  Linking.addEventListener('url', (ev) => go(ev.url));
+  const sub = Linking.addEventListener('url', (ev) => go(ev.url));
+  return () => sub.remove();
 }

@@ -59,7 +59,7 @@ function Root() {
   }, [c.bg]);
   useEffect(() => {
     const off = installNotificationRouting();
-    applyDevRoute();
+    const offLinks = applyDevRoute();
     const offShake = onShake(() => {
       const label = getEngine().undo();
       if (label) {
@@ -69,6 +69,7 @@ function Root() {
     });
     return () => {
       off();
+      offLinks();
       offShake();
     };
   }, []);

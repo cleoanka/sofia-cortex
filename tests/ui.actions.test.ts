@@ -28,7 +28,10 @@ mock.module('expo-notifications', () => ({
   SchedulableTriggerInputTypes: { DATE: 'date' },
 }));
 
+mock.module('react-native', () => ({ Linking: {} }));
+
 const { appendLine, deleteNode } = await import('../src/ui/actions');
+const { routeFromUrl } = await import('../src/platform/devRoute');
 const { installNotificationRouting, setReminder } = await import('../src/platform/notify');
 const { nav } = await import('../src/state/nav');
 
@@ -118,5 +121,16 @@ describe('reminders across undo', () => {
     expect(e.get(past)!.reminderAt).toBeNull();
     expect(e.get(past)!.reminderId).toBeNull();
     off();
+  });
+});
+
+describe('deep links', () => {
+  test('a malformed %-escape is ignored instead of throwing URIError', () => {
+    const e = mk();
+    const id = e.create(null, { title: 'Işık' });
+    expect(() => routeFromUrl('sofia://node/%E0')).not.toThrow();
+    expect(routeFromUrl('sofia://node/%E0')).toBeNull();
+    expect(routeFromUrl('sofia://node/I%C5%9F%C4%B1k')).toEqual([{ name: 'home' }, { name: 'node', id }]);
+    expect(routeFromUrl('sofia://autopilot')).toEqual([{ name: 'home' }, { name: 'autopilot', scope: null }]);
   });
 });
