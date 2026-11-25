@@ -432,7 +432,10 @@ export class CortexEngine {
 
   isDescendant(id: NodeId, ancestorId: NodeId): boolean {
     let cur = this.nodes.get(id);
-    while (cur?.parentId) {
+    // A parent loop (stored by an older importJSON) must not spin forever.
+    const seen = new Set<NodeId>();
+    while (cur?.parentId && !seen.has(cur.id)) {
+      seen.add(cur.id);
       if (cur.parentId === ancestorId) return true;
       cur = this.nodes.get(cur.parentId);
     }
@@ -576,7 +579,9 @@ export class CortexEngine {
   /** The nearest sealed node on the path, if its plan is still unfinished. */
   activeSeal(id: NodeId | null): CortexNode | undefined {
     let cur = id ? this.nodes.get(id) : undefined;
-    while (cur) {
+    const seen = new Set<NodeId>();
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
       if (cur.sealed && this.hasOpenTasks(cur.id)) return cur;
       cur = cur.parentId ? this.nodes.get(cur.parentId) : undefined;
     }

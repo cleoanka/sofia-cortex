@@ -860,6 +860,19 @@ describe('graph, search & vault export/import', () => {
     expect(e.allLive().some((z) => z.id === x) && e.allLive().some((z) => z.id === y)).toBe(true);
   });
 
+  test('isDescendant and activeSeal stop on a parent loop already stored in the DB', () => {
+    const { db } = mk();
+    seedLegacyRow(db, 'a', 'b', 'A', null);
+    seedLegacyRow(db, 'b', 'a', 'B', null);
+    const e = new CortexEngine(db);
+    expect(e.get('a')!.parentId).toBe('b');
+    expect(e.get('b')!.parentId).toBe('a');
+    expect(e.isDescendant('a', 'zzz')).toBe(false);
+    expect(e.isDescendant('a', 'b')).toBe(true);
+    expect(e.activeSeal('a')).toBeUndefined();
+    expect(e.isLocked('b')).toBe(false);
+  });
+
   test('importJSON rejects garbage payloads and ignores invalid entries', () => {
     const { e } = mk();
     expect(() => e.importJSON(null as never)).toThrow('Geçersiz arşiv');
