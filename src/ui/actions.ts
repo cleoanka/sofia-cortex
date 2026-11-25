@@ -49,6 +49,16 @@ export function deleteNode(id: NodeId): boolean {
   return true;
 }
 
+/** Settings → "Bütün notları sil": every note, one undo step, and no alarm left ringing. */
+export function deleteAll(): void {
+  const e = getEngine();
+  const all = e.allLive();
+  e.removeAll();
+  cancelTriggers(all);
+  haptic.thud();
+  nav().showToast('Bütün notlar silindi');
+}
+
 // ───────────────────────── line editing ─────────────────────────
 
 /** Deepest level a page shows inline (0-based); deeper lines open as their own page. */

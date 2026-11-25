@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { seedShowcase } from '../engine/seed';
 import { haptic } from '../platform/haptics';
 import { exportJSON, exportMarkdownZip, importJSON } from '../platform/vault';
@@ -7,6 +7,7 @@ import { useEngine } from '../state/hooks';
 import { nav } from '../state/nav';
 import { usePalette, useTheme, type ThemePref } from '../theme/ThemeProvider';
 import { type } from '../theme/tokens';
+import { deleteAll } from '../ui/actions';
 import { Icon } from '../ui/Icon';
 import { BackButton, Hairline, Tap, TopBar, useBarInset } from '../ui/primitives';
 
@@ -57,11 +58,12 @@ export function SettingsScreen() {
           <Row
             label="Bütün notları sil"
             danger
-            onPress={() => {
-              haptic.thud();
-              e.removeAll();
-              nav().showToast('Bütün notlar silindi');
-            }}
+            onPress={() =>
+              Alert.alert('Bütün notlar silinsin mi?', 'Bu telefondaki her not ve görev silinir.', [
+                { text: 'Vazgeç', style: 'cancel' },
+                { text: 'Sil', style: 'destructive', onPress: deleteAll },
+              ])
+            }
           />
         </Section>
       </ScrollView>

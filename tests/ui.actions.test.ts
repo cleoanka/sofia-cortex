@@ -30,7 +30,7 @@ mock.module('expo-notifications', () => ({
 
 mock.module('react-native', () => ({ Linking: {} }));
 
-const { appendLine, deleteNode } = await import('../src/ui/actions');
+const { appendLine, deleteAll, deleteNode } = await import('../src/ui/actions');
 const { routeFromUrl } = await import('../src/platform/devRoute');
 const { installNotificationRouting, setReminder } = await import('../src/platform/notify');
 const { nav } = await import('../src/state/nav');
@@ -95,6 +95,27 @@ describe('reminders across undo', () => {
     expect(e.get(note)!.reminderAt).toBe(at);
     // Bookkeeping stays out of history: the delete is still the step to redo.
     expect(e.canRedo).toBe(true);
+    off();
+  });
+
+  test('delete all cancels every alarm; undo re-schedules them', async () => {
+    const e = mk();
+    const off = installNotificationRouting();
+    const page = e.create(null, { title: 'Sayfa' });
+    const line = e.create(page, { title: 'Satır' });
+    const at = Date.now() + 3_600_000;
+    await setReminder(page, at, null);
+    await setReminder(line, at + 1, null);
+    expect(os.scheduled.size).toBe(2);
+
+    deleteAll();
+    await settle();
+    expect(e.allLive()).toEqual([]);
+    expect(os.scheduled.size).toBe(0);
+
+    e.undo();
+    await settle();
+    expect([...os.scheduled.values()].sort()).toEqual([at, at + 1]);
     off();
   });
 
