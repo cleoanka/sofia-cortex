@@ -52,16 +52,16 @@ export async function setReminder(id: NodeId, at: number | null, hook: string | 
   if (n.reminderId) await Notifications.cancelScheduledNotificationAsync(n.reminderId).catch(() => {});
   if (at == null) {
     if (n.reminderId) cancelled.add(n.reminderId);
-    e.update(id, { reminderAt: null, reminderHook: null, reminderId: null });
+    e.update(id, { reminderAt: null, reminderHook: null, reminderId: null }, { label: 'Hatırlatıcı' });
     return 'ok';
   }
   const rid = await scheduleReminder(id, at, hook);
   // Without permission nothing will ring — the note must not claim a reminder.
   if (!rid) {
-    e.update(id, { reminderAt: null, reminderHook: null, reminderId: null });
+    e.update(id, { reminderAt: null, reminderHook: null, reminderId: null }, { label: 'Hatırlatıcı' });
     return 'denied';
   }
-  e.update(id, { reminderAt: at, reminderHook: hook, reminderId: rid });
+  e.update(id, { reminderAt: at, reminderHook: hook, reminderId: rid }, { label: 'Hatırlatıcı' });
   return 'ok';
 }
 

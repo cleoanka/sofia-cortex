@@ -170,6 +170,20 @@ describe('setReminder outcome', () => {
     expect(os.scheduled.get(rid)).toBe(at);
   });
 
+  test('title edit + reminder: one undo takes back only the reminder', async () => {
+    const e = mk();
+    const note = e.create(null, { title: '' });
+    e.update(note, { title: 'Ara' });
+    const at = Date.now() + 3_600_000;
+    expect(await setReminder(note, at, null)).toBe('ok');
+
+    expect(e.undo()).toBe('Hatırlatıcı');
+    expect(e.get(note)!.title).toBe('Ara');
+    expect(e.get(note)!.reminderAt).toBeNull();
+    expect(e.undo()).toBe('Düzenle');
+    expect(e.get(note)!.title).toBe('');
+  });
+
   test('without permission nothing is scheduled and the note claims no reminder', async () => {
     const e = mk();
     const note = e.create(null, { title: 'Ara' });

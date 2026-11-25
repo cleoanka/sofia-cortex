@@ -712,10 +712,10 @@ export class CortexEngine {
   update(
     id: NodeId,
     patch: Partial<Pick<CortexNode, 'title' | 'body' | 'collapsed' | 'steepUntil' | 'reminderAt' | 'reminderHook' | 'reminderId'>>,
-    opts: { history?: boolean } = {},
+    opts: { history?: boolean; label?: string } = {},
   ): void {
     this.transact(
-      'Düzenle',
+      opts.label ?? 'Düzenle',
       () => {
         const n = this.must(id);
         const next = { ...n, ...patch, updatedAt: this.clock() };
