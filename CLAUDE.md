@@ -16,6 +16,7 @@ expo-haptics · expo-notifications · zustand.
 ```bash
 bun test                    # engine, links, physics, edge cases (129 tests)
 npx tsc --noEmit            # strict, noUnusedLocals
+npm test / npm run typecheck  # same two as scripts; CI (.github/workflows/ci.yml) runs both
 npx expo run:ios            # simulator dev build
 npx expo run:ios --device   # physical iPhone (USB/Wi-Fi)
 ```

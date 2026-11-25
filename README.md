@@ -110,6 +110,9 @@ bun test
 npx expo run:ios                     # simulator
 ```
 
+`npm test` and `npm run typecheck` run the tests and the strict type check; GitHub Actions
+(`.github/workflows/ci.yml`) runs both on every push and pull request to `main`.
+
 ### Installing on an iPhone
 
 1. Connect the iPhone over USB and tap *Trust This Computer*; turn on **Settings → Privacy & Security →
