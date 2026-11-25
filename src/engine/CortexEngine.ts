@@ -1093,6 +1093,8 @@ export class CortexEngine {
       for (const raw of data.nodes) {
         if (typeof raw?.id !== 'string') continue;
         const t = this.clock();
+        // An alarm already scheduled on this phone belongs to the live node; an archive never carries one.
+        const prev = this.nodes.get(raw.id);
         this.put({
           id: raw.id,
           parentId: raw.parentId ?? null,
@@ -1107,9 +1109,9 @@ export class CortexEngine {
           sealed: !!raw.sealed,
           collapsed: !!raw.collapsed,
           steepUntil: raw.steepUntil ?? null,
-          reminderAt: null,
-          reminderHook: raw.reminderHook ?? null,
-          reminderId: null,
+          reminderAt: prev ? prev.reminderAt : null,
+          reminderHook: prev ? prev.reminderHook : (raw.reminderHook ?? null),
+          reminderId: prev ? prev.reminderId : null,
           role: raw.role === 'inbox' || raw.role === 'table' ? raw.role : null,
           fmt: raw.fmt && typeof raw.fmt === 'object' ? raw.fmt : null,
           createdAt: raw.createdAt ?? t,

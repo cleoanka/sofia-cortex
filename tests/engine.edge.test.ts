@@ -830,6 +830,18 @@ describe('graph, search & vault export/import', () => {
     expect(e.children(null)).toContain('orphanNode');
   });
 
+  test('importJSON(merge) keeps the reminder already scheduled on a live node', () => {
+    const { e } = mk();
+    const a = e.create(null, { title: 'Ara' });
+    const archive = e.exportJSON();
+    e.update(a, { reminderAt: 9_999_999, reminderHook: 'Başla', reminderId: 'os-1' }, { history: false });
+    e.importJSON({ nodes: [...archive.nodes, { id: 'fresh', title: 'Yeni', reminderAt: 5, reminderId: 'other-phone' } as never] });
+    const n = e.get(a)!;
+    expect([n.reminderAt, n.reminderHook, n.reminderId]).toEqual([9_999_999, 'Başla', 'os-1']);
+    expect(e.get('fresh')!.reminderAt).toBeNull();
+    expect(e.get('fresh')!.reminderId).toBeNull();
+  });
+
   test('importJSON cuts parent loops so every node stays reachable', () => {
     const { e } = mk();
     const keep = e.create(null, { title: 'Keep' });
